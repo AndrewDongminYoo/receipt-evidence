@@ -1,0 +1,119 @@
+# receipt-evidence — Design
+
+Status: approved 2026-08-19.
+A React Native app and a TypeScript backend that turn a scanned receipt into structured data **that can show its work**: every extracted value carries the line of source text it came from, and a deterministic parser — not another model — decides whether the model earned its answer.
+
+## Why this exists
+
+Receipt extraction is the canonical LLM demo, and almost every version of it asks the reader to trust the output.
+This one answers two questions the usual demo leaves open.
+
+1. **Does the model actually need to be here?**
+   Measured, not asserted: a deterministic parser over the same OCR text derives currency on 12/12 real receipts, the purchase date on 11/12, merchant and paid total on 7/12 each — and **line items on 0/12**.
+   Item names disappear from recognition; barcodes and amounts survive on separate lines.
+   That gap is the model's job, and the numbers name it.
+2. **What happens when the model is wrong?**
+   Every value must quote a source excerpt; deterministic code then checks the excerpt exists in the OCR text, checks the value appears inside the excerpt, and recomputes the arithmetic itself.
+   A value that cannot show its evidence is surfaced as unverified rather than presented as fact.
+
+## Scope
+
+**In:** camera and gallery capture on iOS and Android, on-device OCR, deterministic extraction, an LLM pass for what the parser cannot derive, evidence verification, arithmetic re-checking, and one page each (mobile, web) that shows the result with its evidence highlighted on the image.
+
+**Out:** persistence, accounts, authentication, multi-user, expense categorisation, receipt storage, and anything that outlives a single request.
+The server holds nothing after it answers.
+
+## Architecture
+
+A single pnpm workspace:
+
+```plaintext
+apps/mobile/        Expo (dev client) — capture via react-native-receipt-scanner
+apps/web/           Next.js — /api/extract Route Handler + one demo page
+packages/contract/  shared types, the model's JSON schema, the parser, the guards, their tests
+docs/{specs,plans,notes}
+```
+
+`packages/contract` is the centre of gravity.
+It holds the parser, the guards, and the types, so the server, the demo page, and the app all see one definition of what a receipt fact is and one implementation of whether a fact is trustworthy.
+Its tests need no network and no device.
+
+### The pipeline
+
+1. **Capture (app).** `scan()` returns `ReceiptImage { uri, width, height, ocrText, ocrLines[{ text, frame }], ocrQuality }`.
+   `ocrLines` carries a bounding box per line, which is what makes evidence visible rather than merely quotable.
+2. **Floor decision (app).** The app applies the scanner's own OCR floor.
+   Pages that clear it are sent as text; only a page below the floor also uploads its JPEG.
+   One round trip, and the image leaves the device only when the text cannot carry the work.
+3. **Deterministic pass (server).** The parser extracts merchant, date, total, currency, and reference from the OCR text, each with the line it came from.
+4. **Model pass (server).** The model is asked only for what the parser did not derive — always the line items, plus whichever header fields came back empty.
+   The JSON schema makes `evidence: { pageIndex, excerpt }` required on every value; a response without it is invalid, not merely suspect.
+5. **Verification (server, deterministic).**
+   - The excerpt must occur in that page's OCR text, compared after NFKC normalisation.
+   - The value must occur inside the excerpt (the `excerptContainsValue` rule ported from catfood-feeder, which already handles decimal commas and token boundaries).
+   - The parser re-parses the model's evidence line on its own — even for a field it could not derive from the whole document, it can usually read one cited line — and if it reads a different value there than the model claimed, both readings are reported as a disagreement.
+   - Line-item amounts are summed and compared against the paid total.
+
+   **One rule for failure, everywhere:** a value that fails any check is kept, marked `verified: false`, and listed under `unverified`.
+   It is never silently dropped and never presented as fact.
+   Dropping it would hide the interesting half of the demo; presenting it would be the exact failure this project exists to prevent.
+6. **Anchoring (server).** Each surviving excerpt is matched back to `ocrLines` to recover its bounding box.
+7. **Presentation (app and web).** The receipt renders with a box drawn over the evidence for each field, unverified values marked, and any arithmetic mismatch shown as a mismatch rather than silently corrected.
+
+### Response shape
+
+```json
+{
+  "fields": { "merchant": { "value": "7-Eleven", "source": "model", "evidence": { "pageIndex": 0, "excerpt": "...", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } }, "verified": true } },
+  "items": [
+    {
+      "name": "디아)기네스드래프트440ml",
+      "quantity": 4,
+      "amountMinor": 13000,
+      "source": "model",
+      "evidence": { "pageIndex": 0, "excerpt": "13,000", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
+      "verified": true
+    }
+  ],
+  "arithmetic": { "itemSumMinor": 14800, "claimedTotalMinor": 14800, "agrees": true },
+  "unverified": [],
+  "disagreements": []
+}
+```
+
+`source` is `parser` or `model` on every field, so a reader can see which half of the system produced each value.
+
+## Salvage from due_back
+
+`due_back` is a stopped Flutter project, but two of its parts are the most expensive pieces of this design and both are finished and tested.
+Its 52 tests pass as of 2026-08-19.
+
+- **`ReceiptAnalyzer` (523 lines of Dart)** — a deterministic parser whose comments record real edge cases: Korean and English date forms, expiry-label exclusion, discount and subtotal rows that are not the paid total, count rows that are not money (`TOTAL NUMBER OF ITEMS SOLD - 10`), non-merchandise rows (`CHANGE DUE`, `거스름`, `승인`), currency inference that reads `12,900원` as money and `원두커피` as coffee, and clock times stripped before amount inference.
+  It already carries an evidence model: every fact quotes its `OcrEvidence { lineIndex, text }`.
+- **A 12-receipt corpus** (6 Korean, 6 English) of anonymised OCR text with a manifest of expected facts, per-fact evidence lines, and — for each fact the OCR cannot support — a written reason why.
+
+Both are copied, not moved; `due_back` is left alone.
+Same author, both MIT.
+
+The port is mechanical (regular expressions and string handling), and the Dart tests port with it as the acceptance criterion: the TypeScript parser must reproduce the same 12-receipt manifest.
+
+**Assumption to check during implementation:** the corpus was recognised by `due_back`'s own capture path, not by `react-native-receipt-scanner`.
+Both sit on ML Kit and Vision, so the text should be comparable, but the first device run will show whether the fixtures match what this app actually receives.
+
+## Testing
+
+- **Corpus golden tests** — the ported parser against the 12-receipt manifest, no network.
+- **Guard tests** — a fabricated model response whose value never appears in the OCR text must be rejected. Deleting the guard must break this test; that is how the guard is known to be load-bearing.
+- **Arithmetic tests** — item sums that agree, disagree, and cannot be computed at all.
+- **Schema/type test** — the JSON schema handed to the model and the TypeScript types stay in step.
+- **One device pass** — camera and gallery on a real iPhone, because a screenshot of a simulator proves nothing about VisionKit.
+
+## Risks
+
+- **Model identifier.** The API model name is confirmed against OpenAI's current documentation before any call is written; it is not written from memory.
+- **Korean OCR quality.** The corpus shows how badly item names survive recognition. If the model cannot recover items from barcode-and-amount fragments either, that is a finding worth publishing rather than a failure to hide — and the image-fallback path exists for exactly this case.
+- **Cost per request.** Text-only requests dominate; images travel only below the OCR floor.
+
+## Open decisions
+
+None blocking. The repository is `receipt-evidence`, public, MIT.
