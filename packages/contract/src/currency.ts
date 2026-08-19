@@ -5,20 +5,13 @@
 // imported from total.ts rather than redeclared — see the "Exported" notes
 // there.
 //
-// One piece of Dart's `_currencyFrom` (:400) is NOT ported: the cents-row
-// eligibility check there is `_isAmountOnlyRow(text) || _isPricedItem(line)`,
-// and `_isPricedItem` depends on `_nonItemLabel`/`_nonMerchandiseLabel`/
-// `_namedItem`/`itemNameFrom`, which live in items.ts (Task 7) and do not
-// exist yet at this point in the task order. This TS port only accepts
-// amount-only rows into the cents count, which is STRICTER than Dart —
-// fewer rows qualify, biasing toward KRW exactly where Dart could still
-// reach USD via a priced-item row. The risk is bounded: Task 7's own brief
-// states the item-name path derives nothing on all 12 real corpus receipts
-// (names do not survive OCR), so the omitted OR-branch is inert on the
-// corpus gate (Task 9). Pinned by the fourth test in currency.test.ts.
+// The cents-row eligibility check at :400 is
+// `_isAmountOnlyRow(text) || _isPricedItem(line)`; the isPricedItem half
+// ports from items.ts (Task 7), which now exists.
 import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
 import { withoutDateOrTime } from "./amounts.ts";
+import { isPricedItem } from "./items.ts";
 import {
   TOTAL_LABEL,
   OTHER_AMOUNT_LABEL,
@@ -91,7 +84,7 @@ export function inferCurrency(_rawText: string, lines: OcrEvidence[], total: Ocr
       if (WON_MARKER.test(text)) return "KRW";
       if (DOLLAR_MARKER.test(text)) return "USD";
     }
-    if (!isAmountOnlyRow(text)) continue;
+    if (!isAmountOnlyRow(text) && !isPricedItem(line)) continue;
     if (!impliesCents(text)) continue;
     centsRows++;
     if (centsRows > 1) return "USD";
