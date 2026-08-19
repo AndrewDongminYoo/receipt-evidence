@@ -1,0 +1,66 @@
+// Ported from due_back/lib/due_back/service/receipt_analyzer.dart:59-87
+// (constants), :192-198 (amountFrom, canUseAsAmount), and :441-470
+// (_amountOf, _minorUnits, _withoutDateOrTime) — the substantive
+// amount-parsing logic lives at :441-470, not inside the :192-244 range the
+// task brief cited for it.
+import type { Currency } from "./types.ts";
+import type { OcrEvidence } from "./evidence.ts";
+import { DATE_PATTERN_G, parseDate } from "./dates.ts";
+
+const AMOUNT_PATTERN_G = /\d[\d,]*(?:\.\d{2})?/g;
+// Clock times ride the same line as dates on receipts; a colon never appears
+// in an amount, so stripping `14:30:22` keeps it out of amount inference.
+const CLOCK_TIME = /\d{1,2}:\d{2}(?::\d{2})?/g;
+const SPLIT_GROUPING = /(\d),\s+(?=\d)/g;
+const MAX_WHOLE_DIGITS = 15;
+// receipt_analyzer.dart:36-39.
+const REFERENCE_LABEL = /(order|reference|주문번호|승인번호)/i;
+
+/** A date or clock time is not money: `2026.07.02` otherwise parses as
+ * `202607`, and `14:30:22` injects phantom `14`/`30`/`22` amounts.
+ *
+ * OCR also splits a thousands separator from its digits, so `1, 700` is
+ * rejoined before parsing rather than read as `700`. */
+function withoutDateOrTime(line: string): string {
+  return line
+    .replace(DATE_PATTERN_G, " ")
+    .replace(CLOCK_TIME, " ")
+    .replace(SPLIT_GROUPING, "$1,");
+}
+
+function minorUnits(amount: string): number | null {
+  const parts = amount.replace(/,/g, "").split(".");
+  const whole = parts[0];
+  // A longer run is an identifier, not money, and scaling one to minor units
+  // would wrap silently.
+  if (whole.length > MAX_WHOLE_DIGITS) return null;
+  if (parts.length === 1) return Number(whole);
+  return Number(whole) * 100 + Number(parts[1]);
+}
+
+/** Returns the last amount on `line` in minor currency units, or `null` when
+ * the line carries none. Digit runs too long to be money, such as barcodes,
+ * are skipped instead of crashing the parse. */
+function amountOf(line: string): number | null {
+  let amount: number | null = null;
+  for (const match of withoutDateOrTime(line).matchAll(AMOUNT_PATTERN_G)) {
+    const parsed = minorUnits(match[0]);
+    if (parsed !== null) amount = parsed;
+  }
+  return amount;
+}
+
+// `currency` is part of the ported signature but, like the Dart source,
+// minor-unit scaling is decided by whether the matched token has a decimal
+// part, never by currency — see minorUnits above.
+export function parseAmountMinor(text: string, _currency: Currency): number | null {
+  return amountOf(text);
+}
+
+export function canUseAsAmount(line: OcrEvidence): boolean {
+  return (
+    parseDate(line.text) === null &&
+    !REFERENCE_LABEL.test(line.text) &&
+    (amountOf(line.text) ?? 0) > 0
+  );
+}
