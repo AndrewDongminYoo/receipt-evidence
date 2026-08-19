@@ -6,6 +6,10 @@
 // source-extraction.ts. Ported from there instead; behaviour is unchanged.
 //
 // verifyEvidence is new: it is not a port.
+//
+// The two guards are independent: verifyEvidence checks the excerpt is real
+// (a substring of the page), excerptContainsValue checks the claimed value is
+// in the excerpt. Neither implies the other — a caller must run both.
 
 /**
  * Matches a European decimal-comma literal ("2,5"): a comma followed by

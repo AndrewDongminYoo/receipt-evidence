@@ -22,6 +22,16 @@ test("verifyEvidence compares after NFKC normalisation", () => {
   assert.equal(verifyEvidence("１４，８００", "합계 14,800"), true);
 });
 
+test("a real excerpt carrying a value it never states is rejected", () => {
+  // The subtler hallucination, and the one catfood-feeder's guard was built for:
+  // the model quotes a line that genuinely exists and attaches a number that is
+  // not in it. verifyEvidence passes here — only excerptContainsValue catches it.
+  const page = "GS25\n합계 14,800\n";
+
+  assert.equal(verifyEvidence("합계 14,800", page), true);
+  assert.equal(excerptContainsValue("합계 14,800", 13000), false);
+});
+
 test("a fabricated model value cannot pass the guard", () => {
   // The regression that gives this whole project its point: delete either guard
   // and this test must fail.
