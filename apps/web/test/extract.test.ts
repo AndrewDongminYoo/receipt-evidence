@@ -54,4 +54,24 @@ test("the parser's own fields are marked as coming from the parser", async () =>
 
   assert.equal(result.fields.paidTotal?.source, "parser");
   assert.equal(result.fields.paidTotal?.verified, true);
+  assert.equal(result.modelReply.accepted, true);
+});
+
+test("a malformed reply is rejected and reported, not silently emptied", async () => {
+  const client = {
+    async complete() {
+      // Missing `evidence`, which ModelReplySchema requires on every item.
+      return { items: [{ name: "커피", amountMinor: 4500 }] };
+    },
+  };
+
+  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
+
+  assert.equal(result.modelReply.accepted, false);
+  assert.ok(!result.modelReply.accepted && result.modelReply.reason.length > 0);
+  assert.deepEqual(result.items, []);
+  // Existing behaviour is unchanged: a rejected reply still leaves the
+  // parser's own fields standing.
+  assert.equal(result.fields.paidTotal?.source, "parser");
+  assert.equal(result.fields.paidTotal?.verified, true);
 });

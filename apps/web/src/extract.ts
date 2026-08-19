@@ -76,6 +76,12 @@ export interface ExtractionResponse {
    * plan's one failure rule. */
   unverified: string[];
   disagreements: Disagreement[];
+  /** Whether the model's reply passed ModelReplySchema at all. `items: []`
+   * means two different things — the model found nothing, or its reply was
+   * thrown out — and this is the only field that tells them apart. `reason`
+   * is the zod error message only: short and factual, never the raw reply,
+   * which may carry receipt contents. */
+  modelReply: { accepted: true } | { accepted: false; reason: string };
 }
 
 function box(pages: readonly Page[], pageIndex: number, excerpt: string): Frame | null {
@@ -219,8 +225,14 @@ export async function extract(
   // per-value verified/unverified guard this file runs below, so nothing is
   // added to `unverified` for it — the spec's "invalid, not merely
   // suspect" wording (docs/specs/2026-08-19-receipt-evidence-design.md)
-  // licenses treating a structurally invalid reply as no reply at all.
+  // licenses treating a structurally invalid reply as no reply at all. The
+  // rejection is reported, not silent: `modelReply.accepted` is what tells
+  // an empty-because-rejected reply apart from an empty-because-nothing-
+  // found one, since `items: []` alone reads identically either way.
   const reply: ModelReply = modelParse.success ? modelParse.data : { items: [] };
+  const modelReply: ExtractionResponse["modelReply"] = modelParse.success
+    ? { accepted: true }
+    : { accepted: false, reason: modelParse.error.message };
 
   const unverified: string[] = [];
   const disagreements: Disagreement[] = [];
@@ -248,5 +260,6 @@ export async function extract(
     arithmetic,
     unverified,
     disagreements,
+    modelReply,
   };
 }
