@@ -92,6 +92,11 @@ export function excerptContainsValue(excerpt: string, value: number): boolean {
 export function verifyEvidence(excerpt: string, pageText: string): boolean {
   const normalize = (value: string) => value.normalize("NFKC").replace(/[^\S\n]+/g, " ").trim();
   const normalizedExcerpt = normalize(excerpt);
+  // An empty (or whitespace-only) excerpt is not evidence of anything, and every
+  // string contains the empty string — without this check the guard fails open
+  // for the most ordinary hallucination, a model returning "". A guard's default
+  // answer must be "no".
+  if (normalizedExcerpt === "") return false;
   return normalize(pageText)
     .split("\n")
     .some((line) => line.includes(normalizedExcerpt));

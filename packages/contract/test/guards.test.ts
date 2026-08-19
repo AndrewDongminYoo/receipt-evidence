@@ -22,6 +22,14 @@ test("verifyEvidence compares after NFKC normalisation", () => {
   assert.equal(verifyEvidence("１４，８００", "합계 14,800"), true);
 });
 
+test("verifyEvidence rejects an empty or whitespace-only excerpt", () => {
+  const page = "GS25\n합계 14,800\n";
+
+  assert.equal(verifyEvidence("", page), false);
+  assert.equal(verifyEvidence("   ", page), false);
+  assert.equal(verifyEvidence("　", page), false); // ideographic space, NFKC-normalises to a space
+});
+
 test("verifyEvidence rejects an excerpt spliced from two lines", () => {
   const page = "아메리카노 1개\n합계\n소계 4500\n부가세 450\n";
 
