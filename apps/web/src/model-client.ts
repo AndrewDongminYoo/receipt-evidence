@@ -32,7 +32,7 @@ export interface ModelClient {
 // model that omits a nested optional (an item with no quantity) comes back
 // with `quantity: null`, which ModelReplySchema's `.optional()` rejects
 // (absent, not null) and the whole reply is dropped.
-function toStrictSchema(node: unknown): unknown {
+export function toStrictSchema(node: unknown): unknown {
   if (typeof node !== "object" || node === null) return node;
   const schema = node as { type?: string; items?: unknown; properties?: Record<string, unknown>; required?: string[] };
   if (schema.type === "array" && schema.items !== undefined) {
