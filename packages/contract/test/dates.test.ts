@@ -17,6 +17,10 @@ test("parseDate ignores a short date embedded in a longer identifier", () => {
   assert.equal(parseDate("78901234567890123456"), null);
 });
 
+test("parseDate skips a calendar-invalid match and takes the valid one beside it", () => {
+  assert.deepEqual(parseDate("2026-02-31 승인 2026-07-01"), new Date(2026, 6, 1));
+});
+
 test("selectDate skips expiry labels and future dates", () => {
   const reference = new Date(2026, 6, 20);
   const lines = evidenceLines("유효기간 2027-01-01\n2028-05-05\n2026-07-02 20:20:50\n");

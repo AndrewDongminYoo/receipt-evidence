@@ -1,8 +1,8 @@
 // Ported from due_back/lib/due_back/service/receipt_analyzer.dart:9-17, 97-104.
 import type { OcrEvidence } from "./evidence.ts";
 
-const DATE_PATTERN =
-  /(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})일?|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/;
+const DATE_PATTERN_G =
+  /(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})일?|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/g;
 const EXPIRY_LABEL = /(expir|\bexp\b|유효기간)/i;
 
 /** Rejects a date the calendar does not have — 2026-02-31 round-trips wrong. */
@@ -13,13 +13,22 @@ function calendarDate(year: number, month: number, day: number): Date | null {
   return valid ? date : null;
 }
 
-export function parseDate(text: string): Date | null {
-  const match = DATE_PATTERN.exec(text);
-  if (!match) return null;
+function dateFromMatch(match: RegExpMatchArray): Date | null {
   if (match[1]) return calendarDate(+match[1], +match[2], +match[3]);
   if (match[6]) return calendarDate(+match[6], +match[4], +match[5]);
   // A two-digit year is this century; receipts from 1926 are not in scope.
   return calendarDate(2000 + +match[9], +match[7], +match[8]);
+}
+
+export function parseDate(text: string): Date | null {
+  // Ported from receipt_analyzer.dart:482-488: a calendar-invalid match (an
+  // OCR-mangled date) does not stop the search — the next match in the same
+  // line may still be a real date.
+  for (const match of text.matchAll(DATE_PATTERN_G)) {
+    const date = dateFromMatch(match);
+    if (date) return date;
+  }
+  return null;
 }
 
 export function selectDate(lines: OcrEvidence[], referenceDate: Date): OcrEvidence | null {
