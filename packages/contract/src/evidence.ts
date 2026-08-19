@@ -1,6 +1,6 @@
 // Ported from due_back/lib/due_back/service/receipt_analyzer.dart:176-184.
 
-/** One recognised line, and where it sat in the original OCR text. */
+/** A recognised line and its position among recognised lines (blanks excluded). */
 export interface OcrEvidence {
   lineIndex: number;
   text: string;
