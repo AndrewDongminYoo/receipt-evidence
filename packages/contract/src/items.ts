@@ -1,7 +1,7 @@
-// Ported from due_back/lib/due_back/service/receipt_analyzer.dart:38-58
-// (_nonMerchandiseLabel, _nonItemLabel, _namedItem), :188-190 (itemNameFrom),
-// :251-258 (_isPricedItem), :285-289 (_isPricedInCurrency), and the
-// itemCandidates block at :116-135.
+// Ported from due_back/lib/due_back/service/receipt_analyzer.dart:46-53
+// (_nonMerchandiseLabel), :54-58 (_nonItemLabel), :65 (_namedItem), :188-190
+// (itemNameFrom), :251-258 (_isPricedItem), :285-289 (_isPricedInCurrency),
+// and the itemCandidates block at :116-127.
 //
 // The corpus proves this path derives nothing on all 12 real receipts: item
 // names do not survive OCR there. That is expected — it is the reason the
