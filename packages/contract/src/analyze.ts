@@ -9,7 +9,7 @@
 import type { Currency } from "./types.ts";
 import { evidenceLines, type OcrEvidence } from "./evidence.ts";
 import { selectDate, parseDate } from "./dates.ts";
-import { selectTotal } from "./total.ts";
+import { selectTotal, isAmountOnlyRow } from "./total.ts";
 import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts.ts";
 import { inferCurrency } from "./currency.ts";
 import { extractItems, type ParsedItem } from "./items.ts";
@@ -107,13 +107,23 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
 
   const items = extractItems(lines, currency);
 
-  // receipt_analyzer.dart:154/:167 — merchant is unconditionally the first
-  // recognised line (`lines.first`), with no filter for amount/date shape.
-  // The `.skip(1)` at :129, in the unrelated synthetic-fallback-item block
-  // this module does not port, confirms line 0 is reserved for the merchant
-  // elsewhere in that function.
+  // Deliberate deviation from receipt_analyzer.dart:154/:167, which takes
+  // `lines.first` unconditionally with no amount/date filter. Dart's
+  // merchant feeds an app that shows the value to its own user, who can see
+  // at a glance that it is wrong; this system's contract instead ships
+  // every value with evidence a reader is invited to trust, so `lines.first`
+  // alone would let a rotated scan (the corpus's KR-04, whose manifest
+  // reason is "the rotated scan starts with amount lines") publish an
+  // amount as the merchant name, backed by an amount line, presented as a
+  // fact it cannot support. The filter stays narrow on purpose — skip a
+  // line only when it parses as a date or is nothing but an amount, never a
+  // heuristic about what a merchant name looks like: a garbled brand mark
+  // (the corpus's KR-01, "ELEUE") must still come through, because it is
+  // honestly what line 0 says and no rule can tell it apart from a real one.
+  const merchantEvidence =
+    lines.find((line) => parseDate(line.text) === null && !isAmountOnlyRow(line.text)) ?? null;
   const merchant: ParsedField<string> | null =
-    lines.length === 0 ? null : { value: lines[0].text, evidence: lines[0] };
+    merchantEvidence === null ? null : { value: merchantEvidence.text, evidence: merchantEvidence };
 
   return { merchant, purchaseDate, paidTotal, currency, reference, items, lines };
 }

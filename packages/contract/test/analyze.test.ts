@@ -31,3 +31,9 @@ test("analyze quotes evidence that re-parses to the same value", () => {
   assert.equal(parsed.paidTotal?.evidence.text, "17,100");
   assert.deepEqual(parsed.purchaseDate?.value, new Date(2026, 6, 2));
 });
+
+test("analyze skips an amount line when looking for the merchant", () => {
+  const parsed = analyze("13,000\nGS25\n2026-07-02\n합계 13,000\n", new Date(2026, 6, 20));
+
+  assert.equal(parsed.merchant?.value, "GS25");
+});
