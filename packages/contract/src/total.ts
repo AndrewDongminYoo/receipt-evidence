@@ -8,15 +8,21 @@ import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
 import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts.ts";
 
-const TOTAL_LABEL = /(^|\s)(total|grand total|결제금액|합계)(\s|:|$)/i;
+// Exported: currency.ts (Task 6) ports `_splitLabelCurrency`, which tests
+// this same label against the rows above a split total. Dart holds one copy
+// as a static field; two TS copies would be the thing that diverges.
+export const TOTAL_LABEL = /(^|\s)(total|grand total|결제금액|합계)(\s|:|$)/i;
 // A row naming a different money figure is never the paid total. The English
 // labels match as whole words, so `TAXI FARE $12.99` is a fare rather than a
 // tax row; the Korean ones match anywhere, because `할인금액` is one word.
-const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\b|소계|할인|세금|부가세/i;
+// Exported: currency.ts reuses this to exclude a fare/tax row from marker
+// detection, same reuse reason as TOTAL_LABEL above.
+export const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\b|소계|할인|세금|부가세/i;
 // A row naming a count is the paid total only when it also carries money:
 // `TOTAL 2 ITEMS $24.95` is a total, `TOTAL NUMBER OF ITEMS SOLD - 10` is a tally.
 const COUNT_LABEL = /\b(count|number|items?|sold|qty|quantity)\b|수량|개수/i;
-const SPLIT_TOTAL_LOOKAHEAD = 2;
+// Exported: currency.ts's `_splitLabelCurrency` port reuses the same lookahead.
+export const SPLIT_TOTAL_LOOKAHEAD = 2;
 
 // An item needs a name, and `2@ 2.05` or `$ 41.00` leaves only punctuation
 // once its trailing price is removed.
@@ -30,12 +36,17 @@ const CURRENCY_SYMBOL = /[₩$]|원|\b(KRW|USD)\b/i;
 const CURRENCY_SYMBOL_G = /[₩$]|원|\b(KRW|USD)\b/gi;
 // `원` is a currency only where it follows an amount: `12,900원` is money,
 // `원두커피` is coffee.
-const WON_MARKER = /₩|\bKRW\b|\d\s*원/i;
-const DOLLAR_MARKER = /(\$|USD)/i;
+// Exported: currency.ts's marker checks are the same static fields Dart
+// declares once (`_wonMarker`, `_dollarMarker`).
+export const WON_MARKER = /₩|\bKRW\b|\d\s*원/i;
+export const DOLLAR_MARKER = /(\$|USD)/i;
 
 /** Whether `line` holds an amount and nothing else once its date, clock time,
- * and currency marker are removed. */
-function isAmountOnlyRow(line: string): boolean {
+ * and currency marker are removed.
+ *
+ * Exported: currency.ts's `_currencyFrom` port calls this same check
+ * (receipt_analyzer.dart:213-219 is one static method, not two). */
+export function isAmountOnlyRow(line: string): boolean {
   return withoutDateOrTime(line).replace(CURRENCY_SYMBOL_G, " ").replace(AMOUNT_PATTERN_G, " ").trim() === "";
 }
 
