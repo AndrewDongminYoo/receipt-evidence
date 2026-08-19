@@ -833,7 +833,7 @@ Expected at first: failures on some receipts. Fix by comparing against the Dart 
 
 - [ ] **Step 4: Record the baseline**
 
-Write `docs/notes/corpus-baseline.md` with the per-field counts the suite proves: currency 12/12, purchaseDate 11/12, merchant 7/12, paidTotalMinor 7/12, reference 1/12, items 0/12. These numbers are quoted in the README and the spec, so they live in one file that the test can be re-run against.
+Write `docs/notes/corpus-baseline.md` with the per-field counts a real run produces, on BOTH axes: how often the parser returned a value, and how often that value matched the manifest. Measured 2026-08-19: currency 12/12 correct, purchaseDate 11/12, merchant returned 12 and correct 7, paidTotalMinor returned 12 and correct 7, reference 1/12, and items returned on 3 receipts — all three spurious. The earlier "items 0/12" claim counted manifest flags rather than parser output and did not survive measurement.
 
 - [ ] **Step 5: Commit**
 

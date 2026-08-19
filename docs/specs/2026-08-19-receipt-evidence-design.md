@@ -9,9 +9,13 @@ Receipt extraction is the canonical LLM demo, and almost every version of it ask
 This one answers two questions the usual demo leaves open.
 
 1. **Does the model actually need to be here?**
-   Measured, not asserted: a deterministic parser over the same OCR text derives currency on 12/12 real receipts, the purchase date on 11/12, merchant and paid total on 7/12 each — and **line items on 0/12**.
-   Item names disappear from recognition; barcodes and amounts survive on separate lines.
-   That gap is the model's job, and the numbers name it.
+   Measured by running the parser over 12 real receipts, not asserted (`docs/notes/corpus-baseline.md`).
+   It gets currency right 12/12 and the purchase date 11/12.
+   Then it gets interesting: it returns a merchant on **all 12** but only **7** are right, and a paid total on **all 12** of which again only **7** are right — the rest are a garbled brand mark, a registration number, or a barcode run picked up by the largest-amount fallback.
+   Line items are worse than absent: on 3 of the 12 it **invents** one, reading `NO: 34567` as an item named `NO:` priced 34,567.
+
+   So the honest finding is not "a parser cannot do items". It is that a deterministic parser's failure mode is the same as a language model's — confident wrongness, with no signal attached telling you which half you are looking at.
+   That is the case for this project's whole shape: evidence on every value, arithmetic recomputed independently, and anything unsupported marked rather than presented.
 2. **What happens when the model is wrong?**
    Every value must quote a source excerpt; deterministic code then checks the excerpt exists in the OCR text, checks the value appears inside the excerpt, and recomputes the arithmetic itself.
    A value that cannot show its evidence is surfaced as unverified rather than presented as fact.
