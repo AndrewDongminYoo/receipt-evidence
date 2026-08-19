@@ -153,7 +153,7 @@ git commit -m "build: 🏗️ set up the pnpm workspace and the contract package
 - Consumes: nothing.
 - Produces: `interface OcrEvidence { lineIndex: number; text: string }` and `evidenceLines(rawText: string): OcrEvidence[]`. Every later module quotes lines through this type.
 
-Port from `due_back/lib/due_back/service/receipt_analyzer.dart:176-184`. `lineIndex` counts **every** line of the raw text including blank ones, so an index always points back at the original document; blank lines are then filtered out of the returned list.
+Port from `due_back/lib/due_back/service/receipt_analyzer.dart:176-184`. Blank lines are trimmed away **first**, and `lineIndex` is then assigned over what survives — Dart's `.indexed` runs on the already-filtered iterable. So the index counts recognised lines, not raw document lines. That is also what the rest of the system needs: the index points into the scanner's `ocrLines[]`, which contains recognised lines only and never blanks.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -163,12 +163,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { evidenceLines } from "../src/evidence.ts";
 
-test("evidenceLines drops blanks but keeps original line indexes", () => {
+test("evidenceLines drops blanks and indexes what survives", () => {
   const lines = evidenceLines("Mono Market\n\n  Total 189,000  \n");
 
   assert.deepEqual(lines, [
     { lineIndex: 0, text: "Mono Market" },
-    { lineIndex: 2, text: "Total 189,000" },
+    { lineIndex: 1, text: "Total 189,000" },
   ]);
 });
 
@@ -197,10 +197,12 @@ export interface OcrEvidence {
 export function evidenceLines(rawText: string): OcrEvidence[] {
   return rawText
     .split("\n")
-    // The index is assigned before filtering, so it still points at the raw
-    // document — an evidence line the caller cannot locate is not evidence.
-    .map((text, lineIndex) => ({ lineIndex, text: text.trim() }))
-    .filter((line) => line.text.length > 0);
+    .map((text) => text.trim())
+    .filter((text) => text.length > 0)
+    // The index is assigned after filtering, matching Dart's `.indexed` on the
+    // filtered iterable: it counts recognised lines, which is what the scanner's
+    // ocrLines[] is indexed by too.
+    .map((text, lineIndex) => ({ lineIndex, text }));
 }
 ```
 
