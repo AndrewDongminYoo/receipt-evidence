@@ -455,10 +455,16 @@ test("selectTotal rejects a count row carrying no money", () => {
   assert.equal(selectTotal(lines, "USD"), null);
 });
 
-test("selectTotal does not read TAXI as a tax row", () => {
+test("selectTotal yields no evidence for a labelled fare row", () => {
+  // The no-label fallback accepts a row that is a currency-marked amount and
+  // NOTHING else, which is how `SUBTOTAL $20.00`, `TENDER $20.00` and
+  // `TAX $1.05` stay out (receipt_analyzer.dart:338-341). A fare row has the
+  // same shape, so it is excluded too and the receipt gets a total with no
+  // evidence line. That "TAXI" is not read as a tax row is a currency-inference
+  // claim, and Task 6 pins it.
   const lines = evidenceLines("TAXI FARE $12.99\n");
 
-  assert.equal(selectTotal(lines, "USD")?.text, "TAXI FARE $12.99");
+  assert.equal(selectTotal(lines, "USD"), null);
 });
 
 test("selectTotal pairs a total printed on the following line", () => {
@@ -531,6 +537,14 @@ test("inferCurrency reads 원 as currency only after an amount", () => {
 
   assert.equal(inferCurrency("합계 12,900원", money, money[0]), "KRW");
   assert.equal(inferCurrency("원두커피 $4.50", coffee, coffee[0]), "USD");
+});
+
+test("inferCurrency reads a fare row as USD — TAXI is not a tax row", () => {
+  // receipt_analyzer_test.dart:611-620 asserts exactly this and nothing else:
+  // `\btax\b` matches as a whole word, so TAXI never triggers the tax label.
+  const lines = evidenceLines("City Cabs\nTAXI FARE $12.99\n");
+
+  assert.equal(inferCurrency("City Cabs\nTAXI FARE $12.99", lines, null), "USD");
 });
 
 test("inferCurrency keeps a dotted date out of cents detection", () => {
