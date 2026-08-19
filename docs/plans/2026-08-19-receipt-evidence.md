@@ -858,7 +858,7 @@ export function excerptContainsValue(excerpt: string, value: number): boolean;
 export function verifyEvidence(excerpt: string, pageText: string): boolean;
 ```
 
-Port `excerptContainsValue` from `catfood-feeder/src/lib/source-extraction.ts:294-335`. It normalises NFKC, rejects the fraction slash, finds the first numeric token, handles decimal-comma forms, and checks the token's leading boundary.
+Port `excerptContainsValue` from `catfood-feeder/src/lib/source-extraction.ts:288-328`; its helpers `normalizeDecimalLiteral` and `DECIMAL_COMMA` live in a different file, `catfood-feeder/src/lib/excerpt-match.ts:6,12-31`, and are imported from there. It normalises NFKC, rejects the fraction slash, finds the first numeric token, handles decimal-comma forms, and checks the token's leading boundary.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -886,6 +886,16 @@ test("verifyEvidence rejects an excerpt absent from the page text", () => {
 
 test("verifyEvidence compares after NFKC normalisation", () => {
   assert.equal(verifyEvidence("１４，８００", "합계 14,800"), true);
+});
+
+test("a real excerpt carrying a value it never states is rejected", () => {
+  // The subtler hallucination, and the one catfood-feeder's guard was built for:
+  // the model quotes a line that genuinely exists and attaches a number that is
+  // not in it. verifyEvidence passes here — only excerptContainsValue catches it.
+  const page = "GS25\n합계 14,800\n";
+
+  assert.equal(verifyEvidence("합계 14,800", page), true);
+  assert.equal(excerptContainsValue("합계 14,800", 13000), false);
 });
 
 test("a fabricated model value cannot pass the guard", () => {
