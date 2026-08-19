@@ -3,10 +3,14 @@
 // (itemNameFrom), :251-258 (_isPricedItem), :285-289 (_isPricedInCurrency),
 // and the itemCandidates block at :116-127.
 //
-// The corpus proves this path derives nothing on all 12 real receipts: item
-// names do not survive OCR there. That is expected — it is the reason the
-// system has an LLM step at all. This still works on cleaner receipts and is
-// what verifies the model's items later.
+// Measured on the 12-receipt corpus (docs/notes/corpus-baseline.md): this
+// path derives no CORRECT item on any of the 12 — item names do not survive
+// OCR there, which is expected and is the reason the system has an LLM step
+// at all — but on 3 of the 12 (KR-02, KR-05, KR-06) a garbled line
+// shape-matches "name" + "trailing amount" and it invents a spurious one.
+// That is faithful to Dart, not a port bug; see corpus.test.ts's pinned
+// assertions for the exact wrong values. This still works on cleaner
+// receipts and is what verifies the model's items later.
 import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
 import { parseDate } from "./dates.ts";

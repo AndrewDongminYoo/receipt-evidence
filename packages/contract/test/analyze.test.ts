@@ -37,3 +37,13 @@ test("analyze skips an amount line when looking for the merchant", () => {
 
   assert.equal(parsed.merchant?.value, "GS25");
 });
+
+test("analyze skips a negative amount line when looking for the merchant", () => {
+  // KR-04 (docs/notes/corpus-baseline.md): isAmountOnlyRow doesn't strip a
+  // leading sign, so "-1,167" was slipping through as the merchant. A
+  // negative amount is still an amount, so the merchant filter strips the
+  // sign before delegating.
+  const parsed = analyze("-1,167\nGS25\n2026-07-02\n합계 13,000\n", new Date(2026, 6, 20));
+
+  assert.equal(parsed.merchant?.value, "GS25");
+});

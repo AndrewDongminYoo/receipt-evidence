@@ -23,7 +23,7 @@ Reported as a finding, not silently corrected here.
 
 ## Receipts where the parser returned a value the manifest marks non-derivable
 
-- **merchant** (5): KR-01 (`"ELEUE"`, the garbled brand mark), KR-03 (`"0|05 9 : (12)3456-7890"`, a registration/phone line), KR-04 (`"-1,167"`, an amount line that survives the merchant filter's `isAmountOnlyRow` check because it carries a leading minus sign the check doesn't strip), KR-06 (`"ЛЮТ9: 123-45-67890"`), EN-05 (`"not saleps"`).
+- **merchant** (5): KR-01 (`"ELEUE"`, the garbled brand mark), KR-03 (`"0|05 9 : (12)3456-7890"`, a registration/phone line), KR-04 (`"I21E"`, a garbled fragment two lines below the amount block — fixed to skip past the block itself, see below), KR-06 (`"ЛЮТ9: 123-45-67890"`), EN-05 (`"not saleps"`).
 - **paidTotalMinor** (5): KR-02, KR-03, KR-05, KR-06, EN-05 — all via the `largestAmount` fallback (no `TOTAL_LABEL` row present), which picks up a barcode or approval-number digit run as the "largest amount" on the line.
 - **purchaseDate** (0): none. KR-06 (the one manifest-non-derivable case) correctly returns `null`.
 - **reference** (0): none.
@@ -37,10 +37,19 @@ KRW's `isPricedInCurrency` is unconditionally `true` (won has no minor unit), so
 
 `isPricedItem` is also read by `currency.ts`'s cents-row eligibility check (`_isAmountOnlyRow(text) || _isPricedItem(line)`, Dart `:400`), which feeds `inferCurrency` in `analyze.ts`.
 Currency is currently 12/12 correct on this corpus, so narrowing `isPricedItem` to suppress these three false positives is not a safe unilateral change — it could move currency inference on receipts this baseline hasn't stress-tested.
-`packages/contract/test/corpus.test.ts` marks these three receipts' item assertions `todo` (not silently weakened, not force-passed) pending a ruling on whether/how to tighten the shared predicate.
 
-`items.ts`'s own header comment currently claims "The corpus proves this path derives nothing on all 12 real receipts" — that claim predates this task's corpus wiring and is now empirically false for 3 of the 12.
-Left uncorrected pending the same ruling, since fixing the comment would look like ratifying a decision that hasn't been made yet.
+**Ruling: keep the faithful port.** `packages/contract/test/corpus.test.ts` now pins the exact wrong output for these three receipts (KR-02 → item `"NO:"` at 34,567; KR-05 → `"X118/232"` at 812; KR-06 → `"HE500*"` at 100) as real, passing assertions, not `todo`s. A known-wrong, faithfully-ported behavior is honest to assert; the pin exists so a future narrowing of the shared predicate shows up as a failing test here rather than a silent behavior change.
+
+`items.ts`'s own header comment previously claimed "The corpus proves this path derives nothing on all 12 real receipts" — false for 3 of the 12.
+Corrected to state the measured truth: no *correct* item on any of the 12, and a spurious one on 3, citing this file.
+
+## Merchant: KR-04's negative-amount blind spot (fixed)
+
+KR-04's merchant filter (`analyze.ts`) was returning `"-1,167"` — a negative amount line — because `isAmountOnlyRow` doesn't strip a leading sign before checking whether a line is nothing but an amount.
+That is correct behavior for `isAmountOnlyRow`'s other callers (`total.ts`, `currency.ts`, both measured correct on this corpus), so the fix lives locally in the merchant filter instead: a leading `+`/`-` is stripped before delegating to `isAmountOnlyRow`.
+This is within the merchant filter's own stated rule ("skip a line only when it parses as a date or is nothing but an amount") — a negative amount is still an amount.
+Pinned by `analyze.test.ts`'s `"analyze skips a negative amount line when looking for the merchant"`, which failed before the fix and passes after it.
+KR-04's merchant now resolves to `"I21E"` (still wrong — the manifest's reason is "the rotated scan starts with amount lines; the brand mark appears sixteen lines later" — but no longer an amount masquerading as a name).
 
 ## `columnAlignedValue` coverage (`total.ts`)
 
@@ -49,9 +58,10 @@ Across all 12 fixtures, `columnAlignedValue` never returned a non-null result: 0
 
 The manifest's total-evidence notes for EN-01/EN-02/EN-03/EN-06 ("label and value occupy separate lines") describe the simpler single-label case that `splitTotalValueAfter`'s plain skip-ahead loop already handles, not the multi-label stacked-column case `columnAlignedValue` exists for (`SUBTOTAL:`/`TAX:`/`TOTAL:`/`VISA:` all consecutive, then all four values consecutive).
 None of the 12 fixtures actually stacks 2+ label rows back to back before its values.
-**This is a real coverage gap**: `columnAlignedValue`'s multi-row pairing branch has no fixture in this corpus exercising it and remains verified only by reading, as Task 5's review already flagged.
+This was a real coverage gap: `columnAlignedValue`'s multi-row pairing branch had no fixture in this corpus exercising it and was verified only by reading, as Task 5's review flagged.
+Closed by a dedicated unit test in `packages/contract/test/total.test.ts` (`"selectTotal pairs stacked labels with their column-aligned values"`), a synthetic `SUBTOTAL:`/`TAX:`/`TOTAL:` block that exercises the branch directly rather than relying on a real fixture that happens to shape it that way.
 
 ## Reproduction
 
-Run `pnpm test` (53 tests, 50 pass, 0 fail, 3 `todo` — the items divergence above) for the pass/fail assertions.
-The per-field counts above come from a one-off script that loads `analyze()` from `packages/contract/src/analyze.ts`, runs it over all 12 fixtures, and tallies non-null/matching values per field against `packages/contract/test/fixtures/receipts/expected.json`'s `ocrDerived` block; the script was not committed, but every number in it is reproducible from `corpus.test.ts`'s own per-receipt assertions.
+Run `pnpm test` (55 tests, 55 pass, 0 fail, 0 todo) for the pass/fail assertions.
+Run `node scripts/measure-corpus.mjs` to re-derive the per-field counts above: it loads `analyze()` from `packages/contract/src/analyze.ts`, runs it over all 12 fixtures, and tallies non-null/matching values per field against `packages/contract/test/fixtures/receipts/expected.json`'s `ocrDerived` block, plus the full list of receipts where a value was returned against a `derivable: false` fact.

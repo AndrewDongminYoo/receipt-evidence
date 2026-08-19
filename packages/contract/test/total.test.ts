@@ -38,3 +38,14 @@ test("selectTotal pairs a total printed on the following line", () => {
 
   assert.equal(selectTotal(lines, "KRW")?.text, "189,000");
 });
+
+test("selectTotal pairs stacked labels with their column-aligned values", () => {
+  // The columnAlignedValue branch: OCR flattens a two-column block into all
+  // its labels, then all its values, so the nth label must pair with the
+  // nth value rather than the first value after it. Measured unexercised by
+  // all 12 real corpus fixtures (docs/notes/corpus-baseline.md) — this is
+  // the dedicated test Task 5's review flagged as missing.
+  const lines = evidenceLines("SUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03\n");
+
+  assert.equal(selectTotal(lines, "USD")?.text, "6.03");
+});

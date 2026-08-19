@@ -86,31 +86,39 @@ for (const receipt of manifest.receipts) {
 
 // Items get their own test per receipt, separate from the block above: the
 // manifest marks items non-derivable on all twelve, and the task's ruling
-// for this field is the strict one ("assert the parser returns none"), not
-// the weaker evidence-quoting check used for the other fields above.
+// for this field is the strict one — assert exactly what the parser
+// returns, correct or not.
 //
-// Measured (see docs/notes/corpus-baseline.md): extractItems is a faithful
-// port of receipt_analyzer.dart:251-258/:285-289 (verified line-for-line
-// against the Dart source), and that exact algorithm invents a spurious
-// single-item array on three of the twelve real fixtures — KR-02 ("NO:
-// 34567" read as item "NO:" priced 34567), KR-05 ("X118/232 812"), and KR-06
-// ("HE500* 100") — because a garbled OCR line happens to shape-match
-// "name" + "trailing amount" with KRW's decimals-free isPricedInCurrency
-// always true. This is not a port bug (Dart does the same), and isPricedItem
-// is also read by currency.ts's cents-row eligibility check, so tightening
-// it here is not a safe unilateral change. Flagged to the operator; these
-// three are marked `todo` pending a ruling rather than silently forced green
-// or silently weakened like the fields above.
-const KNOWN_SPURIOUS_ITEMS = new Set(["KR-02", "KR-05", "KR-06"]);
+// extractItems is a faithful port of receipt_analyzer.dart:251-258/:285-289
+// (verified line-for-line against the Dart source): on three of the twelve
+// real fixtures a garbled OCR line shape-matches "name" + "trailing amount"
+// and produces a spurious item — Dart's own algorithm does the same, so
+// this is not a port bug. isPricedItem also feeds currency.ts's cents-row
+// eligibility check (currently 12/12 correct), so narrowing the predicate
+// here is not a safe unilateral change. Ruling: keep the faithful port and
+// pin the wrong-but-measured output, so any future narrowing of the shared
+// predicate shows up here as a failing assertion instead of a silent
+// behaviour change. See docs/notes/corpus-baseline.md.
+const SPURIOUS_ITEMS: Record<string, { name: string; amountMinor: number; evidence: string }> = {
+  "KR-02": { name: "NO:", amountMinor: 34567, evidence: "NO: 34567" },
+  "KR-05": { name: "X118/232", amountMinor: 812, evidence: "X118/232 812" },
+  "KR-06": { name: "HE500*", amountMinor: 100, evidence: "HE500* 100" },
+};
 
 for (const receipt of manifest.receipts) {
-  test(
-    `${receipt.id} invents no items`,
-    { todo: KNOWN_SPURIOUS_ITEMS.has(receipt.id) },
-    () => {
-      const rawText = fs.readFileSync(path.join(DIR, receipt.fixture), "utf8");
-      const parsed = analyze(rawText, REFERENCE);
+  test(`${receipt.id} items`, () => {
+    const rawText = fs.readFileSync(path.join(DIR, receipt.fixture), "utf8");
+    const parsed = analyze(rawText, REFERENCE);
+    const spurious = SPURIOUS_ITEMS[receipt.id];
+
+    if (spurious === undefined) {
       assert.deepEqual(parsed.items, [], `${receipt.id} must not invent items`);
-    },
-  );
+      return;
+    }
+
+    assert.equal(parsed.items.length, 1, receipt.id);
+    assert.equal(parsed.items[0].name, spurious.name, receipt.id);
+    assert.equal(parsed.items[0].amountMinor, spurious.amountMinor, receipt.id);
+    assert.equal(parsed.items[0].nameEvidence.text, spurious.evidence, receipt.id);
+  });
 }

@@ -122,8 +122,17 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
   // heuristic about what a merchant name looks like: a garbled brand mark
   // (the corpus's KR-01, "ELEUE") must still come through, because it is
   // honestly what line 0 says and no rule can tell it apart from a real one.
+  //
+  // "amount" includes a signed one: isAmountOnlyRow itself doesn't strip a
+  // leading +/-, which is correct for its other callers (total.ts,
+  // currency.ts — measured 12/12 correct on the corpus) but let KR-04's
+  // "-1,167" line through here as a merchant name. The sign is stripped
+  // locally instead of widening isAmountOnlyRow's own definition.
+  const isSignedAmountOnlyRow = (text: string): boolean =>
+    isAmountOnlyRow(text.replace(/^[+-]\s*/, ""));
   const merchantEvidence =
-    lines.find((line) => parseDate(line.text) === null && !isAmountOnlyRow(line.text)) ?? null;
+    lines.find((line) => parseDate(line.text) === null && !isSignedAmountOnlyRow(line.text)) ??
+    null;
   const merchant: ParsedField<string> | null =
     merchantEvidence === null ? null : { value: merchantEvidence.text, evidence: merchantEvidence };
 
