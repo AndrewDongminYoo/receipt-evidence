@@ -23,6 +23,31 @@ function localDate(isoDate: string): Date {
   return new Date(year, month - 1, day);
 }
 
+// Ruling 5 (superseding the original "quotes a real line" check): a reviewer
+// reverted the KR-04 merchant sign fix and reran this suite — zero
+// failures, because "the evidence is some real line" accepts any line the
+// parser happens to pick, including the exact regression this task fixed.
+// A gate that cannot fail is the thing this repository argues against, so
+// every non-derivable field the parser nonetheless populates is pinned to
+// its exact current value below. These values are wrong (the manifest says
+// so) and known to be wrong; the assertion exists so that a change to the
+// parser's output here — a fix or a regression — shows up as a failing
+// test instead of passing silently. See docs/notes/corpus-baseline.md.
+const WRONG_MERCHANTS: Record<string, { value: string; evidence: string }> = {
+  "KR-01": { value: "ELEUE", evidence: "ELEUE" },
+  "KR-03": { value: "0|05 9 : (12)3456-7890", evidence: "0|05 9 : (12)3456-7890" },
+  "KR-04": { value: "I21E", evidence: "I21E" },
+  "KR-06": { value: "ЛЮТ9: 123-45-67890", evidence: "ЛЮТ9: 123-45-67890" },
+  "EN-05": { value: "not saleps", evidence: "not saleps" },
+};
+const WRONG_PAID_TOTALS: Record<string, { value: number; evidence: string }> = {
+  "KR-02": { value: 2345678901, evidence: "2345678901" },
+  "KR-03": { value: 7890123456789, evidence: "7890123456789" },
+  "KR-05": { value: 5678901234567, evidence: "5678901234567" },
+  "KR-06": { value: 8901234567890, evidence: "8901234567890" },
+  "EN-05": { value: 78901234567890, evidence: "Cashier: 78901234567890" },
+};
+
 for (const receipt of manifest.receipts) {
   test(`${receipt.id} extracts only OCR-supported facts`, () => {
     const rawText = fs.readFileSync(path.join(DIR, receipt.fixture), "utf8");
@@ -31,11 +56,12 @@ for (const receipt of manifest.receipts) {
     const lineTexts = parsed.lines.map((line: { text: string }) => line.text);
 
     if (derived.merchant.derivable === false) {
-      if (parsed.merchant !== null) {
-        assert.ok(
-          lineTexts.includes(parsed.merchant.evidence.text),
-          `${receipt.id} merchant evidence must quote a recognised line`,
-        );
+      const wrong = WRONG_MERCHANTS[receipt.id];
+      if (wrong === undefined) {
+        assert.equal(parsed.merchant, null, `${receipt.id} must not invent a merchant`);
+      } else {
+        assert.equal(parsed.merchant?.value, wrong.value, receipt.id);
+        assert.equal(parsed.merchant?.evidence.text, wrong.evidence, receipt.id);
       }
     } else {
       assert.equal(parsed.merchant?.value, derived.merchant.value, receipt.id);
@@ -55,11 +81,12 @@ for (const receipt of manifest.receipts) {
     }
 
     if (derived.paidTotalMinor.derivable === false) {
-      if (parsed.paidTotal !== null) {
-        assert.ok(
-          lineTexts.includes(parsed.paidTotal.evidence.text),
-          `${receipt.id} paidTotal evidence must quote a recognised line`,
-        );
+      const wrong = WRONG_PAID_TOTALS[receipt.id];
+      if (wrong === undefined) {
+        assert.equal(parsed.paidTotal, null, `${receipt.id} must not invent a total`);
+      } else {
+        assert.equal(parsed.paidTotal?.value, wrong.value, receipt.id);
+        assert.equal(parsed.paidTotal?.evidence.text, wrong.evidence, receipt.id);
       }
     } else {
       assert.equal(parsed.paidTotal?.value, derived.paidTotalMinor.value, receipt.id);

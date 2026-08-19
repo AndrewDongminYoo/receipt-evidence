@@ -51,6 +51,17 @@ This is within the merchant filter's own stated rule ("skip a line only when it 
 Pinned by `analyze.test.ts`'s `"analyze skips a negative amount line when looking for the merchant"`, which failed before the fix and passes after it.
 KR-04's merchant now resolves to `"I21E"` (still wrong — the manifest's reason is "the rotated scan starts with amount lines; the brand mark appears sixteen lines later" — but no longer an amount masquerading as a name).
 
+## Non-derivable fields are pinned by exact value, not "quotes a line"
+
+A reviewer proved the original non-derivable check ("if the parser returned a value, its evidence must quote a real recognised line") cannot fail: reverting the KR-04 merchant sign fix above and rerunning `corpus.test.ts` produced zero failures, because any line the parser happens to pick satisfies "is a real line."
+A gate that cannot fail is exactly what this repository argues against.
+
+`corpus.test.ts` now pins the exact current value and evidence text for every `derivable: false` field the parser nonetheless populates: the five merchants (KR-01, KR-03, KR-04, KR-06, EN-05) and the five paid totals (KR-02, KR-03, KR-05, KR-06, EN-05), the same style already used for the three spurious items above.
+These pinned values are wrong on purpose — the manifest says so — and the assertion exists so any future change to the parser's output on these fields shows up as a failing test instead of passing silently.
+
+Verified directly: reverting the KR-04 fix and running `node --test packages/contract/test/corpus.test.ts` now fails (KR-04's merchant pin expects `"I21E"`, gets `"-1,167"`); restoring the fix passes again.
+`purchaseDate` and `reference` keep the weaker "quotes a line" check because the parser currently returns `null` for every `derivable: false` case in both fields on this corpus (0/12) — there is no wrong value to pin yet.
+
 ## `columnAlignedValue` coverage (`total.ts`)
 
 Instrumented directly (a temporary `console.error` inside the `values.length >= labels` branch, reverted after the run — `git diff` on `total.ts` is empty).
