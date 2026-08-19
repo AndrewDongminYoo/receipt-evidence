@@ -1,3 +1,5 @@
+import { normalize } from "./normalize.ts";
+
 // excerptContainsValue is ported from
 // catfood-feeder/src/lib/source-extraction.ts:288-328. Its helper
 // normalizeDecimalLiteral (and the DECIMAL_COMMA regex it uses) is not
@@ -90,7 +92,6 @@ export function excerptContainsValue(excerpt: string, value: number): boolean {
  * wanted.
  */
 export function verifyEvidence(excerpt: string, pageText: string): boolean {
-  const normalize = (value: string) => value.normalize("NFKC").replace(/[^\S\n]+/g, " ").trim();
   const normalizedExcerpt = normalize(excerpt);
   // An empty (or whitespace-only) excerpt is not evidence of anything, and every
   // string contains the empty string — without this check the guard fails open
