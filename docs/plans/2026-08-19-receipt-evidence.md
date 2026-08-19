@@ -254,6 +254,10 @@ test("parseDate ignores a short date embedded in a longer identifier", () => {
   assert.equal(parseDate("78901234567890123456"), null);
 });
 
+test("parseDate skips a calendar-invalid match and takes the valid one beside it", () => {
+  assert.deepEqual(parseDate("2026-02-31 승인 2026-07-01"), new Date(2026, 6, 1));
+});
+
 test("selectDate skips expiry labels and future dates", () => {
   const reference = new Date(2026, 6, 20);
   const lines = evidenceLines("유효기간 2027-01-01\n2028-05-05\n2026-07-02 20:20:50\n");
@@ -276,8 +280,8 @@ Translate the Dart regular expressions literally. Dart's `caseSensitive: false` 
 // Ported from due_back/lib/due_back/service/receipt_analyzer.dart:9-17, 97-104.
 import type { OcrEvidence } from "./evidence.ts";
 
-const DATE_PATTERN =
-  /(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})일?|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/;
+const DATE_PATTERN_G =
+  /(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})일?|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/g;
 const EXPIRY_LABEL = /(expir|\bexp\b|유효기간)/i;
 
 /** Rejects a date the calendar does not have — 2026-02-31 round-trips wrong. */
@@ -288,13 +292,22 @@ function calendarDate(year: number, month: number, day: number): Date | null {
   return valid ? date : null;
 }
 
-export function parseDate(text: string): Date | null {
-  const match = DATE_PATTERN.exec(text);
-  if (!match) return null;
+function dateFromMatch(match: RegExpMatchArray): Date | null {
   if (match[1]) return calendarDate(+match[1], +match[2], +match[3]);
   if (match[6]) return calendarDate(+match[6], +match[4], +match[5]);
   // A two-digit year is this century; receipts from 1926 are not in scope.
   return calendarDate(2000 + +match[9], +match[7], +match[8]);
+}
+
+export function parseDate(text: string): Date | null {
+  // Every match on the line, not just the first: an OCR-mangled date sitting
+  // before a real one must not blind the parser to the real one. Dart does the
+  // same at receipt_analyzer.dart:482-488.
+  for (const match of text.matchAll(DATE_PATTERN_G)) {
+    const date = dateFromMatch(match);
+    if (date !== null) return date;
+  }
+  return null;
 }
 
 export function selectDate(lines: OcrEvidence[], referenceDate: Date): OcrEvidence | null {
