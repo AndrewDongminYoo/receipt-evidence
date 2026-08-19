@@ -25,12 +25,19 @@ test("inferCurrency reads a fare row as USD — TAXI is not a tax row", () => {
   assert.equal(inferCurrency("City Cabs\nTAXI FARE $12.99", lines, null), "USD");
 });
 
-test("inferCurrency counts two agreeing cents rows as USD with no total and no symbol", () => {
-  // Pins the `_isPricedItem` OR-branch omission (receipt_analyzer.dart:400):
-  // this TS port only accepts amount-only rows into the cents-row count, so
-  // two bare cents amounts must still agree to USD without any $/KRW/USD
-  // marker or currency-marked total.
-  const lines = evidenceLines("Corner Store\n12.99\n3.50\n");
+test("inferCurrency: priced item rows are not cents-eligible until _isPricedItem is ported", () => {
+  // Dart's cents-row gate (receipt_analyzer.dart:400) is
+  // `!_isAmountOnlyRow(text) && !_isPricedItem(line)) continue;` — a row
+  // counts if it is EITHER amount-only OR a priced item. This TS port only
+  // has the amount-only half, so a named, non-amount-only priced row (has a
+  // letter, so `isAmountOnlyRow` is false) is never cents-eligible here,
+  // even with no total and no currency marker anywhere on the receipt.
+  //
+  // These two rows would be priced items in Dart, so once items.ts (Task 7)
+  // exists and `_isPricedItem` is ported into this OR, this assertion is
+  // expected to become "USD" — that flip is the signal the gap closed, not
+  // a regression.
+  const lines = evidenceLines("Coffee 3.50\nTea 4.25\n");
 
-  assert.equal(inferCurrency("Corner Store\n12.99\n3.50", lines, null), "USD");
+  assert.equal(inferCurrency("Coffee 3.50\nTea 4.25", lines, null), "KRW");
 });
