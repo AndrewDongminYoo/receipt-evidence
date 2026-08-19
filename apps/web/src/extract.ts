@@ -101,8 +101,17 @@ function reparseAmount(excerpt: string, referenceDate: Date): number | null {
   return analyze(excerpt, referenceDate).paidTotal?.value ?? null;
 }
 
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+export function toIsoDate(date: Date): string {
+  // dates.ts builds this Date with `new Date(year, month - 1, day)` — LOCAL
+  // midnight — so it must be read back through the LOCAL getters, not
+  // toISOString(): that reinterprets the instant as UTC and shifts the
+  // calendar day in any non-zero offset zone (a receipt read in Korea,
+  // UTC+9, would report the day before it was bought). Read the same way
+  // it was written.
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /** A field the parser already derived is the trusted baseline: it is not run

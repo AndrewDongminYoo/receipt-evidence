@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extract } from "../src/extract.ts";
+import { extract, toIsoDate } from "../src/extract.ts";
 
 const PAGE = {
   text: "GS25\n2026.07.02 20:20:50\n커피 4,500\n합계 4,500\n",
@@ -55,6 +55,42 @@ test("the parser's own fields are marked as coming from the parser", async () =>
   assert.equal(result.fields.paidTotal?.source, "parser");
   assert.equal(result.fields.paidTotal?.verified, true);
   assert.equal(result.modelReply.accepted, true);
+  // Pins the field end to end, not just toIsoDate in isolation — PAGE's
+  // "2026.07.02 20:20:50" line must come back as 2026-07-02, never shifted
+  // by a day (see the toIsoDate regression test below for why that's live).
+  assert.equal(result.fields.purchaseDate?.value, "2026-07-02");
+});
+
+// dates.ts constructs purchaseDate with `new Date(year, month - 1, day)` —
+// LOCAL midnight — so toIsoDate has to read it back through local getters,
+// not toISOString(), which reinterprets the instant as UTC and can shift
+// the calendar day. The shift only goes one direction per zone sign, so one
+// input cannot fail in both: a UTC+ zone (Seoul) shifts a LOCAL-MIDNIGHT
+// date backward (00:00 minus 9h crosses into the previous UTC day), while a
+// UTC- zone (New York) never shifts a midnight date at all (00:00 plus 4h
+// stays on the same UTC day) — it only shifts a LATE local time forward
+// across the boundary instead. Each zone below uses the time-of-day that
+// actually crosses the UTC day boundary in that zone's direction, so the
+// old (broken) implementation fails in both.
+test("toIsoDate reads a locally-constructed date back as the same calendar day, across UTC offsets", () => {
+  const originalTz = process.env.TZ;
+  try {
+    // Zone must be set BEFORE its Date is constructed — a Date's internal
+    // epoch is fixed from its local components at construction time, so
+    // building it under the wrong TZ bakes in the wrong instant.
+    const cases: [zone: string, hour: number][] = [
+      ["Asia/Seoul", 0], // UTC+9: local midnight crosses backward
+      ["America/New_York", 23], // UTC-4: late local time crosses forward
+    ];
+    for (const [zone, hour] of cases) {
+      process.env.TZ = zone; // Node re-reads TZ per Date construction.
+      const date = new Date(2026, 6, 2, hour, 0, 0);
+      assert.equal(toIsoDate(date), "2026-07-02", `${zone}: local calendar day must round-trip`);
+    }
+  } finally {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  }
 });
 
 test("a malformed reply is rejected and reported, not silently emptied", async () => {
