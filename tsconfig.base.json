@@ -12,5 +12,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.test.ts"]
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.test.ts",
+    "apps/*/src/**/*.ts",
+    "apps/*/app/**/*.ts",
+    "apps/*/test/**/*.test.ts"
+  ]
 }

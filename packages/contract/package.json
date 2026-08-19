@@ -4,7 +4,12 @@
   "version": "0.0.1",
   "type": "module",
   "exports": {
-    ".": "./src/types.ts"
+    ".": "./src/types.ts",
+    "./analyze": "./src/analyze.ts",
+    "./guards": "./src/guards.ts",
+    "./arithmetic": "./src/arithmetic.ts",
+    "./anchor": "./src/anchor.ts",
+    "./schema": "./src/schema.ts"
   },
   "dependencies": {
     "zod": "4.4.3"
