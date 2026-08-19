@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { Currency } from "./types.ts";
 
 // The page excerpt every model-supplied value must carry. Constrained to a
 // non-empty, non-whitespace string here as well as at guards.ts's
@@ -17,8 +16,6 @@ const evidenceSchema = z
   })
   .strict();
 
-const CURRENCIES = ["KRW", "USD"] as const satisfies readonly Currency[];
-
 /** Wraps a value type in the {value, evidence} shape every model-supplied
  * field takes, matching analyze.ts's ParsedField<T> but with the model's
  * own evidence shape (a page index and an excerpt) in place of an OcrEvidence
@@ -30,7 +27,11 @@ function evidenced<T extends z.ZodType>(value: T) {
 const modelItemSchema = z
   .object({
     name: z.string().min(1),
-    quantity: z.int().positive(),
+    // Optional, not fail-closed: a model that cannot read a quantity off a
+    // garbled line must be able to omit it rather than invent one to
+    // satisfy the schema — a missing answer beats a fabricated one. Do not
+    // tighten this back to required for symmetry with the other fields.
+    quantity: z.int().positive().optional(),
     amountMinor: z.int(),
     evidence: evidenceSchema,
   })
@@ -51,7 +52,6 @@ export const ModelReplySchema = z
     // string cross the schema boundary.
     purchaseDate: evidenced(z.iso.date()).optional(),
     paidTotal: evidenced(z.int()).optional(),
-    currency: evidenced(z.enum(CURRENCIES)).optional(),
     reference: evidenced(z.string().min(1)).optional(),
   })
   .strict();

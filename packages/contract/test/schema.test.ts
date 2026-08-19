@@ -42,3 +42,14 @@ test("the schema rejects an empty or whitespace-only excerpt", () => {
   assert.equal(ModelReplySchema.safeParse(emptyExcerpt).success, false);
   assert.equal(ModelReplySchema.safeParse(whitespaceExcerpt).success, false);
 });
+
+test("a reply carrying an invented field is rejected, not silently stripped", () => {
+  const reply = {
+    items: [
+      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+    ],
+    confidence: 0.91,
+  };
+
+  assert.equal(ModelReplySchema.safeParse(reply).success, false);
+});
