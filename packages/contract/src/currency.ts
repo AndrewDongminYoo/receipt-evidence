@@ -18,7 +18,7 @@
 // corpus gate (Task 9). Pinned by the fourth test in currency.test.ts.
 import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
-import { withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts.ts";
+import { withoutDateOrTime } from "./amounts.ts";
 import {
   TOTAL_LABEL,
   OTHER_AMOUNT_LABEL,
