@@ -345,7 +345,7 @@ git commit -m "feat(contract): ✨ parse receipt dates and reject expiries"
 - Consumes: `OcrEvidence`.
 - Produces: `parseAmountMinor(text: string, currency: Currency): number | null` and `canUseAsAmount(line: OcrEvidence): boolean`.
 
-Port from `receipt_analyzer.dart:59-87` (`_trailingAmount`, `_amountPattern`, `_centsAmount`, `_clockTime`, `_splitGrouping`, `_maxWholeDigits`) and `:192-244` (`amountFrom`, `canUseAsAmount`). Three rules matter: a clock time is stripped before amounts are read, an OCR-split thousands separator (`13, 364`) is rejoined, and a digit run longer than 15 is an identifier rather than money.
+Port from `receipt_analyzer.dart:59-87` (`_trailingAmount`, `_amountPattern`, `_centsAmount`, `_clockTime`, `_splitGrouping`, `_maxWholeDigits`), `:192-197` (`amountFrom`, `canUseAsAmount` — thin wrappers), and **`:441-470`, where the actual work lives** (`_amountOf`, `_minorUnits`, `_withoutDateOrTime`). Note that `_amountOf` keeps the LAST amount on the line, not the first: `TOTAL 2 ITEMS $24.95` is 2495, not 2. Three rules matter: a clock time is stripped before amounts are read, an OCR-split thousands separator (`13, 364`) is rejoined, and a digit run longer than 15 is an identifier rather than money.
 
 - [ ] **Step 1: Write the failing test**
 
