@@ -4,6 +4,9 @@ import type { OcrEvidence } from "./evidence.ts";
 // Exported so amounts.ts can strip a date before reading money off the same
 // line (receipt_analyzer.dart:466-470's `_withoutDateOrTime`), instead of
 // declaring a second date matcher that could drift from this one.
+// `g`-flagged: safe with matchAll/replace only. Never call .test() or .exec()
+// on this shared instance — either one advances its lastIndex, and the next
+// caller resumes mid-string instead of matching from the start.
 export const DATE_PATTERN_G =
   /(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})일?|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/g;
 const EXPIRY_LABEL = /(expir|\bexp\b|유효기간)/i;

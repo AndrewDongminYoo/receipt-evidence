@@ -31,6 +31,10 @@ function withoutDateOrTime(line: string): string {
 function minorUnits(amount: string): number | null {
   const parts = amount.replace(/,/g, "").split(".");
   const whole = parts[0];
+  // Dart's _minorUnits guards with `int.tryParse(parts.first) == null` before
+  // the length check. This port drops that guard: `amount` only ever reaches
+  // here as an AMOUNT_PATTERN_G match (`\d[\d,]*(?:\.\d{2})?`), so `whole` is
+  // always digit characters and `Number(whole)` can never be NaN.
   // A longer run is an identifier, not money, and scaling one to minor units
   // would wrap silently.
   if (whole.length > MAX_WHOLE_DIGITS) return null;
