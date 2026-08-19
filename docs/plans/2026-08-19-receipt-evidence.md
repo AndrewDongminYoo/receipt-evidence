@@ -1263,6 +1263,22 @@ git commit -m "feat(web): ✨ extract a receipt through the parser, the model, a
 
 ---
 
+### Task 14b: The image fallback
+
+**Files:**
+- Modify: `apps/web/src/model-client.ts`, `apps/web/src/extract.ts`
+- Test: `apps/web/test/model-client.test.ts`
+
+**Interfaces:**
+- Consumes: `Page.imageBase64` — already declared and already sent by the demo page.
+- Produces: a request that carries the page's image when one is present, and does not when it is not.
+
+Added after Task 15 found that `imageBase64` was declared, populated by the caller, and read by nothing. The spec's pipeline has the app attach a JPEG only for a page below the OCR floor; the client must therefore transmit it when present. Without this the floor decision is decoration and the spec describes a path the code does not have.
+
+The test uses a fake client and asserts both directions: a page carrying `imageBase64` produces a request containing the image, and a page without one produces a request that does not. Assert on what the client sends, not on what a model replies — no test in this repository makes a network call.
+
+---
+
 ### Task 15: The demo page
 
 **Files:**
