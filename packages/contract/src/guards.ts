@@ -76,8 +76,23 @@ export function excerptContainsValue(excerpt: string, value: number): boolean {
   );
 }
 
-/** Does the excerpt occur verbatim (NFKC-normalised, whitespace-collapsed) in the page text? */
+/**
+ * Does the excerpt occur verbatim (NFKC-normalised, whitespace-collapsed) within
+ * a single line of the page text?
+ *
+ * Matching is per-line, not across the whole page: evidence in this system IS a
+ * line (OcrEvidence is one line), and Task 12's anchoring maps an excerpt back to
+ * a single entry of the scanner's ocrLines[] to draw a box on the image. An
+ * excerpt spanning two lines could never be anchored, so a cross-line match would
+ * produce a value that verifies but cannot be shown to the reader — the guard and
+ * the anchor have to agree about what a quote is. Whitespace is still collapsed
+ * *within* each line, because OCR spacing wobbles there and that tolerance is
+ * wanted.
+ */
 export function verifyEvidence(excerpt: string, pageText: string): boolean {
-  const normalize = (value: string) => value.normalize("NFKC").replace(/\s+/g, " ").trim();
-  return normalize(pageText).includes(normalize(excerpt));
+  const normalize = (value: string) => value.normalize("NFKC").replace(/[^\S\n]+/g, " ").trim();
+  const normalizedExcerpt = normalize(excerpt);
+  return normalize(pageText)
+    .split("\n")
+    .some((line) => line.includes(normalizedExcerpt));
 }

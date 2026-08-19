@@ -22,6 +22,12 @@ test("verifyEvidence compares after NFKC normalisation", () => {
   assert.equal(verifyEvidence("１４，８００", "합계 14,800"), true);
 });
 
+test("verifyEvidence rejects an excerpt spliced from two lines", () => {
+  const page = "아메리카노 1개\n합계\n소계 4500\n부가세 450\n";
+
+  assert.equal(verifyEvidence("합계\n소계 4500", page), false);
+});
+
 test("a real excerpt carrying a value it never states is rejected", () => {
   // The subtler hallucination, and the one catfood-feeder's guard was built for:
   // the model quotes a line that genuinely exists and attaches a number that is
