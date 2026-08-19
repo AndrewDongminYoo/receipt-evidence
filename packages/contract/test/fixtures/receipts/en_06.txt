@@ -1,0 +1,37 @@
+CHANEL
+CHANEL at Sample Center Lakesfde Grove
+123 N Sample Road
+Lakesfde Grove,
+PA 23456, US
+345-678-9012
+Store: 456
+Register: 1
+Date: 7/12/26
+Time: 6:10 PM
+Trans: 5678
+Cashier: 6789
+Client #: 78901234567
+Clfent: Ms MAREN SANDS
+Item
+Qty
+Price
+Amount
+8901234
+Style #AB9012345678
+FLAPBAG, AGNEAU/ML/BLACK
+$4900.00
+$4900.00
+12345/6789/0123
+Reference #: ABCD2E34
+Advisor: 6789 Maren
+Subtotal
+$4900.00
+PA Sales Tax 6%
+$294.00
+Total
+$5194.00
+Miscellaneous
+$5194.00
+45-67-89012
+Change
+$0.00

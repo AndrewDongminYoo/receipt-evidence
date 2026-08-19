@@ -1,0 +1,670 @@
+{
+  "schemaVersion": 2,
+  "status": "visual_truth_draft_pending_operator_spot_check",
+  "provenance": {
+    "source": "operator_provided_real_receipts",
+    "truthMethod": "visual_transcription_from_sanitized_images_before_dueback_analysis",
+    "ocrEngine": "Apple Vision accurate recognition on macOS with en-US and ko-KR",
+    "rawImagesCommitted": false,
+    "fixturePolicy": "OCR text is byte-faithful to the seed recognition except for identifier, personal-name, address, and purchase-date substitutions",
+    "anonymization": "identifier digit runs keep their original length and separators and are refilled from the cyclic sequence 1234567890; leading zeros, garbled glyphs, intra-number spaces, line order, and line count are preserved; purchase dates are shifted to the corpus sequence while keeping the printed date style",
+    "itemAmountsBasis": "printed line amount after item-specific discounts and before receipt-level tax or discounts"
+  },
+  "fieldModel": {
+    "visual": "Top-level merchant, purchaseDate, paidTotalMinor, currency, reference, and items are read from the sanitized image by a human. Tasks 3 through 5 score physical-device extraction against them.",
+    "ocrDerived": "Facts a deterministic reader can justify from the committed OCR fixture alone. Task 2 asserts only this block. A field marked derivable=false has no support in the fixture text and must never be inferred by the analyzer.",
+    "amountUnit": "minor currency units; KRW values are whole won and USD values are cents"
+  },
+  "receipts": [
+    {
+      "id": "KR-01",
+      "fixture": "kr_01.txt",
+      "language": "ko",
+      "conditions": ["multi_item", "close_crop"],
+      "merchant": "7-Eleven",
+      "purchaseDate": "2026-07-01",
+      "paidTotalMinor": 14800,
+      "currency": "KRW",
+      "reference": null,
+      "items": [
+        {
+          "name": "디아)기네스드래프트440ml",
+          "quantity": 4,
+          "lineAmountMinor": 13000
+        },
+        {
+          "name": "PB)두햄버터코야끼볼57g",
+          "quantity": 1,
+          "lineAmountMinor": 1700
+        },
+        {
+          "name": "친환경 비닐쇼핑백",
+          "quantity": 1,
+          "lineAmountMinor": 100
+        }
+      ],
+      "ocrDerived": {
+        "merchant": {
+          "derivable": false,
+          "reason": "the first OCR line is the garbled brand mark 'ELEUE' and the store URL is misrecognized as 'www.7-twan.cok/'"
+        },
+        "purchaseDate": {
+          "value": "2026-07-01",
+          "evidence": "[E ОНJ 2026-07-01 (2/) 21:22:40"
+        },
+        "paidTotalMinor": { "value": 14800, "evidence": "₩14,800" },
+        "currency": { "value": "KRW" },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "the approval and transaction numbers appear on unlabeled lines"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "item names are absent from the recognition; only barcodes and amounts survive, on separate lines"
+        }
+      }
+    },
+    {
+      "id": "KR-02",
+      "fixture": "kr_02.txt",
+      "language": "ko",
+      "conditions": ["multi_item", "perspective"],
+      "merchant": "GS25",
+      "purchaseDate": "2026-07-02",
+      "paidTotalMinor": 17100,
+      "currency": "KRW",
+      "reference": null,
+      "items": [
+        {
+          "name": "아사히생맥주",
+          "quantity": 4,
+          "lineAmountMinor": 21600
+        },
+        {
+          "name": "새우탕큰사발",
+          "quantity": 2,
+          "lineAmountMinor": 3000
+        },
+        {
+          "name": "포장봉투",
+          "quantity": 1,
+          "lineAmountMinor": 100
+        },
+        {
+          "name": "새우탕큰사발 증정품",
+          "quantity": 1,
+          "lineAmountMinor": 0
+        }
+      ],
+      "ocrDerived": {
+        "merchant": { "value": "GS25", "evidence": "GS25" },
+        "purchaseDate": {
+          "value": "2026-07-02",
+          "evidence": "2026/07/02 л/ж^"
+        },
+        "paidTotalMinor": {
+          "derivable": false,
+          "reason": "no total label and no currency symbol survive; 17,100 is printed twice but the garbled 117,1002 is also present"
+        },
+        "currency": { "value": "KRW" },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "the approval number appears on an unlabeled line"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "item names are absent from the recognition; only quantities and amounts survive, on separate lines"
+        }
+      }
+    },
+    {
+      "id": "KR-03",
+      "fixture": "kr_03.txt",
+      "language": "ko",
+      "conditions": ["multi_item", "digital_receipt"],
+      "merchant": "E-Mart",
+      "purchaseDate": "2026-07-03",
+      "paidTotalMinor": 41360,
+      "currency": "KRW",
+      "reference": null,
+      "items": [
+        {
+          "name": "도스코파스 까버네쇼비",
+          "quantity": 6,
+          "lineAmountMinor": 29400
+        },
+        {
+          "name": "하리보 스위트러브 24",
+          "quantity": 1,
+          "lineAmountMinor": 5980
+        },
+        {
+          "name": "하리보 골드베렌 250g",
+          "quantity": 1,
+          "lineAmountMinor": 5980
+        },
+        {
+          "name": "하리보 스타믹스 250g",
+          "quantity": 1,
+          "lineAmountMinor": 5980
+        }
+      ],
+      "ocrDerived": {
+        "merchant": {
+          "derivable": false,
+          "reason": "the recognition contains no merchant line; it starts with the business registration and phone block"
+        },
+        "purchaseDate": {
+          "value": "2026-07-03",
+          "evidence": "17 0H]2026-07-03 15:19"
+        },
+        "paidTotalMinor": {
+          "derivable": false,
+          "reason": "no total label and no currency symbol survive; 41,360 is printed three times but so are longer barcode digit runs"
+        },
+        "currency": { "value": "KRW" },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "the card and approval numbers appear on unlabeled lines"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "item names are absent from the recognition; only barcodes, quantities, and amounts survive, on separate lines"
+        }
+      }
+    },
+    {
+      "id": "KR-04",
+      "fixture": "kr_04.txt",
+      "language": "ko",
+      "conditions": ["multi_item", "rotated_90", "large_background"],
+      "merchant": "7-Eleven",
+      "purchaseDate": "2026-07-04",
+      "paidTotalMinor": 11400,
+      "currency": "KRW",
+      "reference": null,
+      "items": [
+        {
+          "name": "삼립)미각연유커피카스테",
+          "quantity": 1,
+          "lineAmountMinor": 2500
+        },
+        {
+          "name": "매일)바리스타돌체라떼325",
+          "quantity": 1,
+          "lineAmountMinor": 2333
+        },
+        {
+          "name": "매일)바리스타바닐라빈라떼",
+          "quantity": 2,
+          "lineAmountMinor": 4667
+        },
+        {
+          "name": "삼립)주종발효단팥크림빵1",
+          "quantity": 1,
+          "lineAmountMinor": 1800
+        },
+        {
+          "name": "친환경 비닐쇼핑백",
+          "quantity": 1,
+          "lineAmountMinor": 100
+        }
+      ],
+      "ocrDerived": {
+        "merchant": {
+          "derivable": false,
+          "reason": "the rotated scan starts with amount lines; the brand mark '7-ELEVEN®' appears sixteen lines later"
+        },
+        "purchaseDate": {
+          "value": "2026-07-04",
+          "evidence": "[E 0H] 2026-07-04 (÷) 09:27:22"
+        },
+        "paidTotalMinor": { "value": 11400, "evidence": "₩11,400" },
+        "currency": { "value": "KRW" },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "the approval and barcode numbers appear on unlabeled lines"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "item names are absent from the recognition; the rotated scan separates barcodes from their amounts"
+        }
+      }
+    },
+    {
+      "id": "KR-05",
+      "fixture": "kr_05.txt",
+      "language": "ko",
+      "conditions": ["multi_item", "high_contrast"],
+      "merchant": "7-Eleven",
+      "purchaseDate": "2026-07-05",
+      "paidTotalMinor": 3800,
+      "currency": "KRW",
+      "reference": null,
+      "items": [
+        {
+          "name": "All New)더커진핫소이지퀸",
+          "quantity": 1,
+          "lineAmountMinor": 1900
+        },
+        {
+          "name": "김희묵)들깨닭갈비삼각",
+          "quantity": 1,
+          "lineAmountMinor": 1900
+        }
+      ],
+      "ocrDerived": {
+        "merchant": { "value": "7-ELEVEN", "evidence": "7-ELEVEN" },
+        "purchaseDate": {
+          "value": "2026-07-05",
+          "evidence": "[E 0#] 2026-07-05 (5) 12:11:51"
+        },
+        "paidTotalMinor": {
+          "derivable": false,
+          "reason": "no total label and no currency symbol survive; 3,800 is printed twice but longer barcode digit runs are also present"
+        },
+        "currency": { "value": "KRW" },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "the approval number appears on an unlabeled line"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "item names are absent from the recognition; only barcodes and amounts survive, on separate lines"
+        }
+      }
+    },
+    {
+      "id": "KR-06",
+      "fixture": "kr_06.txt",
+      "language": "ko",
+      "conditions": ["multi_item", "low_contrast"],
+      "merchant": "풍성식품 식자재마트",
+      "purchaseDate": "2026-07-06",
+      "paidTotalMinor": 3300,
+      "currency": "KRW",
+      "reference": null,
+      "items": [
+        {
+          "name": "비타500*광동 100",
+          "quantity": 1,
+          "lineAmountMinor": 600
+        },
+        {
+          "name": "박카스F*동아 120",
+          "quantity": 3,
+          "lineAmountMinor": 2700
+        }
+      ],
+      "ocrDerived": {
+        "merchant": {
+          "derivable": false,
+          "reason": "the low-contrast scan recognizes no merchant line; it starts with the business registration block"
+        },
+        "purchaseDate": {
+          "derivable": false,
+          "expectReferenceDateFallback": true,
+          "reason": "no date line survives the recognition, so the injected clock is the only defensible value"
+        },
+        "paidTotalMinor": {
+          "derivable": false,
+          "reason": "no total label and no currency symbol survive, and the paid total is recognized as '3, 300' with an intra-number space"
+        },
+        "currency": { "value": "KRW" },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "the receipt and card numbers appear on unlabeled lines"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "item names are partially recognized as 'HE500* 100' and '*120' with their amounts on separate lines"
+        }
+      }
+    },
+    {
+      "id": "EN-01",
+      "fixture": "en_01.txt",
+      "language": "en",
+      "conditions": ["multi_item", "close_crop"],
+      "merchant": "Lowe's",
+      "purchaseDate": "2026-07-07",
+      "paidTotalMinor": 603,
+      "currency": "USD",
+      "reference": null,
+      "items": [
+        {
+          "name": "SIGMA 3/4-IN RIGID COND N",
+          "quantity": 2,
+          "lineAmountMinor": 410
+        },
+        {
+          "name": "SIGMA 3/4-IN RGD STL LOCK",
+          "quantity": 2,
+          "lineAmountMinor": 140
+        }
+      ],
+      "ocrDerived": {
+        "merchant": {
+          "value": "LOWE'S®",
+          "evidence": "LOWE'S®",
+          "note": "matches the visual merchant once the ® glyph and letter case are ignored"
+        },
+        "purchaseDate": {
+          "value": "2026-07-07",
+          "evidence": "SALES#: S3456ABC 5678901 TRANS#: 23456789 07-07-26"
+        },
+        "paidTotalMinor": {
+          "value": 603,
+          "evidence": "6.03",
+          "note": "the label 'INVOICE 56789 TOTAL:' and its value occupy separate lines"
+        },
+        "currency": {
+          "value": "USD",
+          "note": "no currency symbol survives; every amount is printed with two decimals"
+        },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "no reference label survives; 'SPECIAL ORDER ITEMS' is marketing copy and must not be read as a reference"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "item names appear on SKU lines with their unit price, discount, and line amount on following lines"
+        }
+      }
+    },
+    {
+      "id": "EN-02",
+      "fixture": "en_02.txt",
+      "language": "en",
+      "conditions": ["multi_item", "folded", "perspective"],
+      "merchant": "Costco Wholesale",
+      "purchaseDate": "2026-07-08",
+      "paidTotalMinor": 24495,
+      "currency": "USD",
+      "reference": null,
+      "items": [
+        {
+          "name": "28- WREATH",
+          "quantity": 1,
+          "lineAmountMinor": 1999
+        },
+        {
+          "name": "NINJA CRISPI",
+          "quantity": 1,
+          "lineAmountMinor": 12499
+        },
+        {
+          "name": "KS CAGE FREE",
+          "quantity": 1,
+          "lineAmountMinor": 539
+        },
+        {
+          "name": "PIZAZZ PLATE",
+          "quantity": 1,
+          "lineAmountMinor": 959
+        },
+        {
+          "name": "KS CHOC MOU",
+          "quantity": 1,
+          "lineAmountMinor": 1099
+        },
+        {
+          "name": "SOFRITO",
+          "quantity": 1,
+          "lineAmountMinor": 669
+        },
+        {
+          "name": "GREEK YOGURT",
+          "quantity": 1,
+          "lineAmountMinor": 699
+        },
+        {
+          "name": "DAVID COOKIE",
+          "quantity": 1,
+          "lineAmountMinor": 989
+        },
+        {
+          "name": "SEGURA ROSE",
+          "quantity": 1,
+          "lineAmountMinor": 899
+        },
+        {
+          "name": "KS BATTERIES",
+          "quantity": 1,
+          "lineAmountMinor": 1599
+        }
+      ],
+      "ocrDerived": {
+        "merchant": {
+          "value": "COSTCO",
+          "evidence": "COSTCO",
+          "note": "the brand block wraps; 'WHOLESALE' is recognized as a separate line"
+        },
+        "purchaseDate": {
+          "value": "2026-07-08",
+          "evidence": "07/08/2026 11:32 123"
+        },
+        "paidTotalMinor": {
+          "value": 24495,
+          "evidence": "24495",
+          "note": "the value under 'TOTAL' lost its decimal point, so the printed digits are the minor-unit amount"
+        },
+        "currency": { "value": "USD", "evidence": "AMOUNT: $244.95" },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "'Tran ID#' is not a recognized reference label"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "the folded scan interleaves the item, discount, and count columns, and amounts sit on separate lines from names"
+        }
+      }
+    },
+    {
+      "id": "EN-03",
+      "fixture": "en_03.txt",
+      "language": "en",
+      "conditions": ["single_item", "low_resolution", "perspective"],
+      "merchant": "Louis Vuitton",
+      "purchaseDate": "2026-07-09",
+      "paidTotalMinor": 103498,
+      "currency": "USD",
+      "reference": null,
+      "items": [
+        {
+          "name": "Rivoli Sneaker Boot",
+          "quantity": 1,
+          "lineAmountMinor": 95500
+        }
+      ],
+      "ocrDerived": {
+        "merchant": { "value": "LOUIS VUITTON", "evidence": "LOUIS VUITTON" },
+        "purchaseDate": { "value": "2026-07-09", "evidence": "Date: 7/9/26" },
+        "paidTotalMinor": {
+          "value": 103498,
+          "evidence": "1,034.98",
+          "note": "the label 'Total' and its value occupy separate lines"
+        },
+        "currency": {
+          "value": "USD",
+          "note": "the recognized '$1,034.98' is garbled to 'S051,034.98'; the two-decimal amounts remain"
+        },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "'Authorizetion:' is garbled and its value sits on the following line"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "the item name is garbled to 'RUMLEEN RIOLI SEAUR BOT' and 'TABEAS', with amounts on separate lines"
+        }
+      }
+    },
+    {
+      "id": "EN-04",
+      "fixture": "en_04.txt",
+      "language": "en",
+      "conditions": ["multi_item", "long_receipt"],
+      "merchant": "Dick's Sporting Goods",
+      "purchaseDate": "2026-07-10",
+      "paidTotalMinor": 15602,
+      "currency": "USD",
+      "reference": null,
+      "items": [
+        {
+          "name": "HEATHERFLE/D",
+          "quantity": 1,
+          "lineAmountMinor": 2998
+        },
+        {
+          "name": "234WHITEPT/N",
+          "quantity": 1,
+          "lineAmountMinor": 1699
+        },
+        {
+          "name": "2023TITLEI/N",
+          "quantity": 1,
+          "lineAmountMinor": 5499
+        },
+        {
+          "name": "2022CHROME/N",
+          "quantity": 1,
+          "lineAmountMinor": 4498
+        },
+        {
+          "name": "DSGFOUNDAT/N",
+          "quantity": 1,
+          "lineAmountMinor": 100
+        }
+      ],
+      "ocrDerived": {
+        "merchant": {
+          "value": "DICK'S SPORTING GOODS",
+          "evidence": "DICK'S SPORTING GOODS"
+        },
+        "purchaseDate": {
+          "value": "2026-07-10",
+          "evidence": "07/10/26",
+          "note": "the preceding line prints the return-window expiry 10/08/26, which must not be read as the purchase date"
+        },
+        "paidTotalMinor": {
+          "value": 15602,
+          "evidence": "$156.02",
+          "note": "'ITEM TOTAL' and 'TOTAL SAVINGS = 15.03' also match a total label and must not win"
+        },
+        "currency": { "value": "USD", "evidence": "$156.02" },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "'AUTH#' is not a recognized reference label"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "each item spans a SKU line, a name line, and one or two amount lines"
+        }
+      }
+    },
+    {
+      "id": "EN-05",
+      "fixture": "en_05.txt",
+      "language": "en",
+      "conditions": ["multi_item", "cropped_total"],
+      "merchant": "lululemon",
+      "purchaseDate": "2026-07-11",
+      "paidTotalMinor": 22042,
+      "paidTotalSource": "derived_from_visible_subtotal_and_tax",
+      "currency": "USD",
+      "reference": null,
+      "items": [
+        {
+          "name": "Align HR Crop 21 Cross Waist",
+          "quantity": 1,
+          "lineAmountMinor": 4900
+        },
+        {
+          "name": "Align Pant 25",
+          "quantity": 1,
+          "lineAmountMinor": 5900
+        },
+        {
+          "name": "Hooded Define Jacket",
+          "quantity": 1,
+          "lineAmountMinor": 5900
+        },
+        {
+          "name": "Swiftly Relaxed LS",
+          "quantity": 1,
+          "lineAmountMinor": 3900
+        }
+      ],
+      "ocrDerived": {
+        "merchant": {
+          "derivable": false,
+          "reason": "the scan starts with the garbled lines 'not saleps' and '«лочот'; the brand appears on the third line"
+        },
+        "purchaseDate": { "value": "2026-07-11", "evidence": "Date: 7/11/26" },
+        "paidTotalMinor": {
+          "derivable": false,
+          "reason": "the receipt is cropped after tax, so no paid total is printed; 22042 is arithmetic on the visible subtotal and tax and must not be invented by the analyzer"
+        },
+        "currency": {
+          "value": "USD",
+          "note": "no currency symbol survives; every amount is printed with two decimals"
+        },
+        "reference": {
+          "derivable": false,
+          "expectEmpty": true,
+          "reason": "'Transaction #:' is not a recognized reference label and its value sits on the following line"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "item names wrap across lines and each amount sits below its SKU line"
+        }
+      }
+    },
+    {
+      "id": "EN-06",
+      "fixture": "en_06.txt",
+      "language": "en",
+      "conditions": ["single_item", "low_resolution"],
+      "merchant": "Chanel",
+      "purchaseDate": "2026-07-12",
+      "paidTotalMinor": 519400,
+      "currency": "USD",
+      "reference": "ABCD2E34",
+      "items": [
+        {
+          "name": "FLAPBAG, AGNEAU/ML/BLACK",
+          "quantity": 1,
+          "lineAmountMinor": 490000
+        }
+      ],
+      "ocrDerived": {
+        "merchant": { "value": "CHANEL", "evidence": "CHANEL" },
+        "purchaseDate": { "value": "2026-07-12", "evidence": "Date: 7/12/26" },
+        "paidTotalMinor": {
+          "value": 519400,
+          "evidence": "$5194.00",
+          "note": "the label 'Total' and its value occupy separate lines"
+        },
+        "currency": { "value": "USD", "evidence": "$5194.00" },
+        "reference": {
+          "value": "ABCD2E34",
+          "evidence": "Reference #: ABCD2E34"
+        },
+        "items": {
+          "derivable": false,
+          "reason": "the item name sits between its SKU line and its two amount lines"
+        }
+      }
+    }
+  ]
+}
