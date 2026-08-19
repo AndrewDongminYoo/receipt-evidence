@@ -7,7 +7,10 @@ import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
 import { DATE_PATTERN_G, parseDate } from "./dates.ts";
 
-const AMOUNT_PATTERN_G = /\d[\d,]*(?:\.\d{2})?/g;
+// Exported so total.ts can test a row's shape (amount-only vs label+amount)
+// without redeclaring this pattern — see DATE_PATTERN_G's precedent in
+// dates.ts. `g`-flagged: safe with matchAll/replace only, per that same note.
+export const AMOUNT_PATTERN_G = /\d[\d,]*(?:\.\d{2})?/g;
 // Clock times ride the same line as dates on receipts; a colon never appears
 // in an amount, so stripping `14:30:22` keeps it out of amount inference.
 const CLOCK_TIME = /\d{1,2}:\d{2}(?::\d{2})?/g;
@@ -21,7 +24,7 @@ const REFERENCE_LABEL = /(order|reference|주문번호|승인번호)/i;
  *
  * OCR also splits a thousands separator from its digits, so `1, 700` is
  * rejoined before parsing rather than read as `700`. */
-function withoutDateOrTime(line: string): string {
+export function withoutDateOrTime(line: string): string {
   return line
     .replace(DATE_PATTERN_G, " ")
     .replace(CLOCK_TIME, " ")
