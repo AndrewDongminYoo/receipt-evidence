@@ -7,10 +7,11 @@ export interface OcrEvidence {
 }
 
 export function evidenceLines(rawText: string): OcrEvidence[] {
-  return rawText
-    .split("\n")
-    // The index is assigned before filtering, so it still points at the raw
-    // document — an evidence line the caller cannot locate is not evidence.
-    .map((text, lineIndex) => ({ lineIndex, text: text.trim() }))
-    .filter((line) => line.text.length > 0);
+  // Filter first, then assign indices. lineIndex counts recognised lines
+  // (non-blank only), matching Dart's `.indexed` on the filtered iterable.
+  // The scanner's `ocrLines[]` is indexed the same way — no blanks, only
+  // what was actually recognised.
+  const trimmed = rawText.split("\n").map((line) => line.trim());
+  const recognised = trimmed.filter((line) => line.length > 0);
+  return recognised.map((text, lineIndex) => ({ lineIndex, text }));
 }
