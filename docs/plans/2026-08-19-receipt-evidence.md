@@ -1085,7 +1085,7 @@ git commit -m "feat(contract): ✨ anchor an evidence excerpt to its OCR box"
 - Modify: `packages/contract/package.json` (add `zod@4.4.3`)
 
 **Interfaces:**
-- Consumes: `Currency`.
+- Consumes: nothing. In particular NOT `Currency` — `inferCurrency` always returns a concrete value, so currency is never a field the parser leaves empty and the model is never asked for it. An earlier version of this line said otherwise and produced a schema branch that could not fire.
 - Produces: `ModelReplySchema` (zod), `type ModelReply = z.infer<typeof ModelReplySchema>`, and `modelJsonSchema()` returning the JSON Schema the API is handed.
 
 One definition produces the runtime validator, the TypeScript type, and the JSON Schema. Writing the JSON Schema by hand alongside the type is the drift this task exists to prevent.
@@ -1113,6 +1113,21 @@ test("the schema accepts a fully evidenced reply", () => {
   };
 
   assert.equal(ModelReplySchema.safeParse(reply).success, true);
+});
+
+test("a reply carrying an invented field is rejected, not silently stripped", () => {
+  // zod emits `additionalProperties: false` from toJSONSchema even without
+  // .strict(), so asserting the emitted schema pins nothing about the runtime
+  // choice. This exercises it. `confidence` is the fixture on purpose: it is
+  // what a model volunteers, and this project refuses to carry one.
+  const reply = {
+    items: [
+      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+    ],
+    confidence: 0.91,
+  };
+
+  assert.equal(ModelReplySchema.safeParse(reply).success, false);
 });
 
 test("the JSON schema handed to the model matches the zod definition", () => {
