@@ -30,8 +30,10 @@ export interface ParsedReceipt {
 }
 
 // receipt_analyzer.dart:38-41. Duplicated privately here rather than
-// exported from amounts.ts — same precedent as items.ts's and currency.ts's
-// own private copies of this same label.
+// exported from amounts.ts — same precedent as items.ts's own private copy
+// of this same label (amounts.ts's own copy is likewise unexported). Not
+// currency.ts: Dart's `_currencyFrom` never consults `_referenceLabel`, so
+// currency.ts has no copy of this pattern.
 const REFERENCE_LABEL = /(order|reference|주문번호|승인번호)/i;
 // receipt_analyzer.dart:519. Case-sensitive in Dart (no `caseSensitive:
 // false`), so this stays without an `i` flag: a reference token is
