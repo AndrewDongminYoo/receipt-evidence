@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test 'packages/*/test/**/*.test.ts' 'apps/*/test/**/*.test.ts'",
-    "typecheck": "tsc --noEmit -p tsconfig.base.json"
+    "typecheck": "tsc --noEmit -p tsconfig.base.json && pnpm --filter @receipt-evidence/mobile typecheck"
   },
   "devDependencies": {
     "typescript": "^6.0.3",

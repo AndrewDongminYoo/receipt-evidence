@@ -6,13 +6,14 @@
 
 **Architecture:** One pnpm workspace. `packages/contract` owns the parser, the guards, the schema, and the types, and its tests run without network or device. `apps/web` exposes `/api/extract` plus a demo page; `apps/mobile` captures through `react-native-receipt-scanner` and draws evidence boxes over the receipt.
 
-**Tech Stack:** TypeScript, Node's built-in test runner (`node --test`, native type stripping — no test framework dependency), pnpm workspaces, zod 4.4.3 for the one schema definition, openai 7.5.0, Next.js 16.3.1 + React 19.2.8, Expo 57.0.14 + React Native 0.87.0, `react-native-receipt-scanner` 0.8.0.
+**Tech Stack:** TypeScript, Node's built-in test runner (`node --test`, native type stripping — no test framework dependency), pnpm workspaces, zod 4.4.3 for the one schema definition, openai 7.5.0, Next.js 16.3.1 + React 19.2.8, Expo 57.0.14 + React Native 0.86.2 + React 19.2.3, `react-native-receipt-scanner` 0.8.0.
 
 **Spec:** `docs/specs/2026-08-19-receipt-evidence-design.md`
 
 ## Global Constraints
 
-- **Versions** verified against the npm registry on 2026-08-19: `expo@57.0.14`, `next@16.3.1`, `react@19.2.8`, `react-native@0.87.0`, `openai@7.5.0`, `zod@4.4.3`. Pin these; do not float.
+- **Versions** verified against the npm registry on 2026-08-19: `expo@57.0.14`, `next@16.3.1`, `react@19.2.8`, `openai@7.5.0`, `zod@4.4.3`. Pin these; do not float.
+- **The mobile pins are Expo's, not npm's `latest`** (corrected 2026-08-22 at Task 16). This line originally read `react-native@0.87.0`, which is what npm ships as `latest` — but `expo@57.0.14`'s own `bundledNativeModules.json` names `react-native` `0.86.2` and `react` `19.2.3`, and Expo's prebuild and autolinking are coupled to that pair. The app uses Expo's versions; the web app keeps `react@19.2.8` for Next 16.3.1, which pnpm resolves per workspace package.
 - **No test framework.** Tests are `node --test` over `*.test.ts`. Node strips TypeScript types natively. Adding vitest or jest to `packages/contract` is a plan violation.
 - **The OpenAI model identifier is never written from memory.** Task 14 begins by reading OpenAI's current model documentation and recording the identifier in the plan's own notes file. A model id that appears in code without that step is a defect.
 - **One failure rule, everywhere:** a value that fails any check is kept, marked `verified: false`, and listed under `unverified`. Never silently dropped, never presented as fact.
