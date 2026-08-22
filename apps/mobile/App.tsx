@@ -16,6 +16,10 @@ import { EvidenceOverlay } from "./src/EvidenceOverlay.tsx";
 // running `pnpm --filter web dev` (see the README).
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
+/** The page whose photo the result view shows. Every other page's values are
+ * still listed — only their boxes have nowhere to be drawn. */
+const PRIMARY_PAGE = 0;
+
 type Status =
   | { kind: "idle" }
   | { kind: "working"; step: string }
@@ -35,7 +39,14 @@ async function toPage(image: ReceiptImage): Promise<Page> {
   return { ...page, imageDataUrl: `data:${image.mimeType};base64,${base64}` };
 }
 
-function boxesOf(result: ExtractionResponse, wanted: boolean): Frame[] {
+/** Boxes for ONE page, in that page's own pixel space.
+ *
+ * The pageIndex filter is not optional: a scan may carry up to three pages,
+ * each anchored against its own OCR geometry, and the view shows one photo.
+ * Without it a box computed on page 1 was painted on page 0's image, pointing
+ * the reader at unrelated text — the worst failure available to an app whose
+ * claim is that a value is shown beside the pixels it was read from. */
+function boxesOf(result: ExtractionResponse, pageIndex: number, wanted: boolean): Frame[] {
   const entries = [
     ...Object.values(result.fields).filter(
       (field): field is ExtractedField<string> | ExtractedField<number> =>
@@ -44,7 +55,10 @@ function boxesOf(result: ExtractionResponse, wanted: boolean): Frame[] {
     ...result.items,
   ];
   return entries
-    .filter((entry) => entry.verified === wanted && entry.evidence.box !== null)
+    .filter(
+      (entry) =>
+        entry.evidence.pageIndex === pageIndex && entry.verified === wanted && entry.evidence.box !== null,
+    )
     .map((entry) => entry.evidence.box as Frame);
 }
 
@@ -120,10 +134,11 @@ function Result({ image, result }: { image: ReceiptImage; result: ExtractionResp
       {image.ocrLines === undefined ? (
         <Image source={{ uri: image.uri }} style={styles.plainImage} resizeMode="contain" />
       ) : (
+        // `image` is scanned.images[0], so only page 0's boxes belong on it.
         <EvidenceOverlay
           image={image}
-          boxes={boxesOf(result, true)}
-          unverifiedBoxes={boxesOf(result, false)}
+          boxes={boxesOf(result, PRIMARY_PAGE, true)}
+          unverifiedBoxes={boxesOf(result, PRIMARY_PAGE, false)}
         />
       )}
 

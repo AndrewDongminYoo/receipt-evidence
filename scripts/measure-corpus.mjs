@@ -10,6 +10,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyze } from "../packages/contract/src/analyze.ts";
 
+/** The parser builds its dates with `new Date(y, m - 1, d)` — LOCAL midnight —
+ * so they must be read back with the local getters. `toISOString()` reinterprets
+ * that instant as UTC and prints the previous calendar day in any positive-offset
+ * zone: a 2026-07-02 receipt measured in Seoul reported 2026-07-01, which would
+ * not match expected.json for a reader re-deriving this table. Same rule, and
+ * same reason, as apps/web/src/extract.ts's toIsoDate. */
+function isoDate(date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const DIR = path.join(REPO_ROOT, "packages/contract/test/fixtures/receipts");
 const REFERENCE = new Date(2026, 6, 20);
@@ -47,7 +59,7 @@ for (const receipt of manifest.receipts) {
       if (parsed.purchaseDate.value.getTime() === expect.getTime()) matchCounts.purchaseDate++;
     }
     if (derived.purchaseDate.derivable === false) {
-      nonDerivableButValued.purchaseDate.push({ id: receipt.id, value: parsed.purchaseDate.value.toISOString(), evidence: parsed.purchaseDate.evidence.text });
+      nonDerivableButValued.purchaseDate.push({ id: receipt.id, value: isoDate(parsed.purchaseDate.value), evidence: parsed.purchaseDate.evidence.text });
     }
   }
 

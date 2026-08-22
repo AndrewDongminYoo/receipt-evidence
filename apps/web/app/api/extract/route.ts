@@ -1,15 +1,8 @@
 // Route Handlers use the standard Web Request/Response APIs (no `next/server`
 // import needed for this shape) — https://nextjs.org/docs/app/api-reference/file-conventions/route.
-import { extract, type Page } from "../../../src/extract.ts";
+import { extract } from "../../../src/extract.ts";
 import { createOpenAIClient } from "../../../src/model-client.ts";
-
-interface RequestBody {
-  pages: Page[];
-}
-
-function isRequestBody(value: unknown): value is RequestBody {
-  return typeof value === "object" && value !== null && Array.isArray((value as { pages?: unknown }).pages);
-}
+import { isRequestBody } from "../../../src/request.ts";
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -27,7 +20,16 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "request body is not valid JSON" }, { status: 400 });
   }
   if (!isRequestBody(body)) {
-    return Response.json({ error: "expected { pages: [...] }" }, { status: 400 });
+    return Response.json(
+      { error: "expected { pages: [{ text, lines: [{ text, frame: {x,y,width,height} }] }] }" },
+      { status: 400 },
+    );
+  }
+  // An empty page list is well-formed and still meaningless: extract() would
+  // fall back to an empty receipt, assert a currency for text it never saw,
+  // and still spend a billable model call on a request carrying no receipt.
+  if (body.pages.length === 0) {
+    return Response.json({ error: "no pages to extract from" }, { status: 400 });
   }
 
   // The key is read from the environment above and never touches the

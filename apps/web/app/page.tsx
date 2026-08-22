@@ -1,8 +1,11 @@
 "use client";
 
 // The reviewer-facing surface for POST /api/extract (task-15-brief.md). It
-// posts OCR text (what the pipeline actually consumes — see the note below
-// about imageDataUrl), then renders every field/item next to the evidence
+// posts OCR text, and the uploaded photo only when the reviewer ticks the
+// box for it — an image in the request is transmitted to the model (see
+// model-client.ts's buildInput), which is exactly the transfer the mobile
+// app's OCR floor exists to gate, so it is not something a page can do to
+// someone quietly. It then renders every field/item next to the evidence
 // that earned it: source (parser vs model), verified/unverified, the
 // arithmetic verdict (including the `agrees: null` "could not be computed"
 // state), a rejected model reply, and an evidence box drawn on the image
@@ -47,10 +50,27 @@ function parseLines(raw: string): { lines: OcrLine[]; error: string | null } {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return { lines: [], error: "lines JSON must be an array" };
+    // Casting straight to OcrLine[] posted [1,2,3] and [{}] to the server,
+    // where anchorToLines read `.text` off a number and the reviewer got a
+    // 502 for what is a typo in this box. Say so inline instead, the way the
+    // JSON syntax error already is.
+    const bad = parsed.findIndex((entry) => !isOcrLine(entry));
+    if (bad !== -1) {
+      return { lines: [], error: `entry ${bad} is not { text, frame: {x,y,width,height} }` };
+    }
     return { lines: parsed as OcrLine[], error: null };
   } catch (err) {
     return { lines: [], error: err instanceof Error ? err.message : "invalid JSON" };
   }
+}
+
+function isOcrLine(value: unknown): value is OcrLine {
+  if (typeof value !== "object" || value === null) return false;
+  const { text, frame } = value as { text?: unknown; frame?: unknown };
+  if (typeof text !== "string") return false;
+  if (typeof frame !== "object" || frame === null) return false;
+  const box = frame as Record<string, unknown>;
+  return ["x", "y", "width", "height"].every((key) => typeof box[key] === "number");
 }
 
 function SourceBadge({ source }: { source: "parser" | "model" }) {
@@ -134,6 +154,10 @@ export default function Page() {
   const [ocrText, setOcrText] = useState("");
   const [linesText, setLinesText] = useState("");
   const [image, setImage] = useState<ImageInfo | null>(null);
+  // Sending the photo is opt-in, and clearing the file clears the consent
+  // with it — a checkbox left ticked from a previous upload must not carry
+  // over to the next one.
+  const [sendImage, setSendImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractionResponse | null>(null);
@@ -145,11 +169,23 @@ export default function Page() {
     const file = event.target.files?.[0];
     if (!file) {
       setImage(null);
+      setSendImage(false);
       return;
     }
-    const dataUrl = await readFileAsDataUrl(file);
-    const { width, height } = await loadImage(dataUrl);
-    setImage({ dataUrl, naturalWidth: width, naturalHeight: height });
+    // Both helpers reject — an unreadable file, an undecodable image (a HEIC
+    // on a browser without support, a truncated download). Uncaught, the
+    // rejection was silent and `image` kept its previous value, so the next
+    // extraction drew boxes over the wrong photo.
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const { width, height } = await loadImage(dataUrl);
+      setImage({ dataUrl, naturalWidth: width, naturalHeight: height });
+      setError(null);
+    } catch (err) {
+      setImage(null);
+      setSendImage(false);
+      setError(`could not read that image: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -170,7 +206,7 @@ export default function Page() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          pages: [{ text: ocrText, lines, imageDataUrl: image?.dataUrl }],
+          pages: [{ text: ocrText, lines, imageDataUrl: sendImage ? image?.dataUrl : undefined }],
         }),
       });
       const body: unknown = await response.json();
@@ -206,8 +242,21 @@ export default function Page() {
           placeholder="paste the receipt's OCR text here"
         />
 
-        <label htmlFor="receipt-image">Receipt image (optional — only needed to draw evidence boxes)</label>
+        <label htmlFor="receipt-image">Receipt image (optional — the backdrop the evidence boxes are drawn on)</label>
         <input id="receipt-image" type="file" accept="image/*" onChange={(event) => void handleImageChange(event)} />
+
+        <label htmlFor="send-image" className="checkbox">
+          <input
+            id="send-image"
+            type="checkbox"
+            checked={sendImage}
+            disabled={image === null}
+            onChange={(event) => setSendImage(event.target.checked)}
+          />
+          Also send the photo to the model — the image fallback, for text too poor to read. Off by default:
+          uploading it is the one thing here that sends your receipt&apos;s picture off this machine, and the app
+          does it only for a page below the OCR floor.
+        </label>
 
         <label htmlFor="ocr-lines">
           OCR lines JSON (optional, advanced) — <code>{"[{ text, frame: {x,y,width,height} }]"}</code> in the
@@ -281,7 +330,12 @@ export default function Page() {
 
           <section className="items">
             <h2>Items ({result.items.length})</h2>
-            {result.items.length === 0 && <p className="hint">No items — the parser never derives items itself.</p>}
+            {result.items.length === 0 && (
+              <p className="hint">
+                No items. The pipeline asks the model for items and takes none from the parser — the parser does
+                derive them, but on this corpus it has never once derived a correct one (see the README table).
+              </p>
+            )}
             {result.items.map((item, index) => (
               <ItemRow key={index} item={item} />
             ))}

@@ -77,6 +77,20 @@ label {
   color: var(--muted);
 }
 
+/* The consent row reads as one sentence with its box, not as a caption above
+   a control — it is the only input here that sends the receipt off-device. */
+label.checkbox {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  line-height: 1.5;
+}
+
+label.checkbox input {
+  margin-top: 0.2rem;
+  flex: none;
+}
+
 textarea,
 input[type="file"] {
   font-family: var(--font-mono);
