@@ -9,8 +9,9 @@ This file covers what those do not, or what will bite before you get to them.
 
 ```bash
 pnpm test                                   # node --test over packages/*/test and apps/*/test
-pnpm typecheck                              # tsc --noEmit over the whole workspace
+pnpm typecheck                              # tsc over the workspace, then apps/mobile's own tsconfig
 pnpm --filter web dev                       # the demo page + /api/extract
+pnpm --filter @receipt-evidence/mobile prebuild   # generate ios/ + android/ (not committed)
 node --test packages/contract/test/guards.test.ts          # one file
 node --test --test-name-pattern '<substring>' <file>       # one test
 node scripts/measure-corpus.mjs             # re-derive the per-field baseline table
@@ -27,6 +28,8 @@ A receipt's OCR text goes through a deterministic parser first; a model is asked
 `packages/contract` is the centre of gravity — the parser, the guards, the schema, and the types all live there so the server, the demo page and the mobile app share one definition of what a receipt fact is. Its tests need no network and no device.
 
 `apps/web/src/extract.ts` is the pipeline. `apps/web/src/model-client.ts` is the only place that talks to OpenAI, and `extract()` takes the client as a parameter so tests substitute a fake — **no test in this repository makes a network call.**
+
+`apps/mobile` is checked by its own `tsconfig.json` (React Native needs Expo's compiler settings), which the root `typecheck` script runs after the workspace one; `tsconfig.base.json` excludes it. Its testable logic lives in `src/capture.ts`, which imports the scanner for *types only* so `node --test` never loads React Native.
 
 ## Invariants that will bite
 
@@ -53,6 +56,8 @@ Nine defects on this project were tests or gates that passed while proving nothi
 
 ## Current state
 
-Tasks 1-15 of the plan are done: the parser and its corpus gate, the guards, arithmetic, anchoring, the schema, `/api/extract`, and the demo page.
+Every task in the plan is implemented: the parser and its corpus gate, the guards, arithmetic, anchoring, the schema, `/api/extract`, the demo page, the image fallback, the Expo app, and the README and CI. 87 tests pass and both typechecks exit 0.
 
-Not yet built: the image fallback (`Page.imageBase64` is declared, populated by the demo page, and read by nothing — Task 14b), the Expo app (Task 16), and the README and CI (Task 17). The OCR-floor decision has no purpose until the image path exists.
+**One step is outstanding and it needs a human: Task 16 Step 4, the device pass.** The app has never been run — no `expo prebuild`, no native build, no camera or gallery capture on a real phone. It installs on the operator's daily iPhone, so it is theirs to authorise.
+
+The branch `feat/scaffold-parser-and-extraction` has never been pushed; only `main` exists on the remote.
