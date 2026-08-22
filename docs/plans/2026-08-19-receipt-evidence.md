@@ -37,7 +37,7 @@ packages/contract/
   src/currency.ts                  inferCurrency()
   src/items.ts                     extractItems()
   src/analyze.ts                   analyze() — assembles a ParsedReceipt
-  src/guards.ts                    excerptContainsValue(), verifyEvidence()
+  src/guards.ts                    excerptContainsAmount(), excerptContainsText(), verifyEvidence()
   src/arithmetic.ts                checkArithmetic()
   src/anchor.ts                    anchorToLines()
   src/schema.ts                    zod schema for the model's reply + JSON Schema
@@ -858,6 +858,8 @@ git commit -m "test(contract): ✅ gate the parser on the 12-receipt corpus"
 export function excerptContainsValue(excerpt: string, value: number): boolean;
 export function verifyEvidence(excerpt: string, pageText: string): boolean;
 ```
+
+**Superseded 2026-08-22 — the port below was built as written, then removed.** A review probe ran the pipeline instead of reading it and found the ported rule could not do this job: it compared minor units against the excerpt's printed decimal (`excerptContainsValue("SANDWICH  12.99", 1299) === false`, so every honest USD amount was flagged, and half this corpus is English), and it required exactly one numeric token, which an ordinary row printing a quantity beside a price never satisfies. The same probe found strings and dates were never value-checked at all. `guards.ts` now exports `excerptContainsAmount` (reads a line with the parser's own `amountsOnLine`) and `excerptContainsText`, and `extract()` checks a date by re-parsing its cited line. The task text below is left as it was written, as the record of what was built.
 
 Port `excerptContainsValue` from `catfood-feeder/src/lib/source-extraction.ts:288-328`; its helpers `normalizeDecimalLiteral` and `DECIMAL_COMMA` live in a different file, `catfood-feeder/src/lib/excerpt-match.ts:6,12-31`, and are imported from there. It normalises NFKC, rejects the fraction slash, finds the first numeric token, handles decimal-comma forms, and checks the token's leading boundary.
 

@@ -34,7 +34,7 @@ So the answer is not to prefer one source over the other — it is to make every
 
 1. **The parser goes first.** Whatever it derives is the baseline, and the model is never asked for it.
 2. **The model is asked only for the gaps** — line items, plus any header field the parser left blank — and must quote a verbatim page excerpt for every value it reports.
-3. **Deterministic code checks the reply.** The excerpt must appear on one real line of the page (`verifyEvidence`), the value must appear inside that excerpt (`excerptContainsValue`), and the parser re-reads the cited line itself and reports any disagreement.
+3. **Deterministic code checks the reply.** The excerpt must appear on one real line of the page (`verifyEvidence`), and the value must actually be stated in that excerpt — an amount checked against the line's amounts as the parser itself reads them, a string as text, a date by re-parsing the line and comparing the day. Then the parser re-reads the cited line on its own and reports any disagreement, whatever the guard decided.
 4. **The items are re-added independently** and compared with the claimed total. `agrees: null` is a third state — nothing to compare — and is shown as itself rather than folded into a failure.
 5. **Anything that fails is kept**, marked `verified: false`, and listed in `unverified`. Dropping it would hide the interesting half.
 

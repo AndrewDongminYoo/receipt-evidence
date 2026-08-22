@@ -54,7 +54,9 @@ Its tests need no network and no device.
    The JSON schema makes `evidence: { pageIndex, excerpt }` required on every value; a response without it is invalid, not merely suspect.
 5. **Verification (server, deterministic).**
    - The excerpt must occur in that page's OCR text, compared after NFKC normalisation.
-   - The value must occur inside the excerpt (the `excerptContainsValue` rule ported from catfood-feeder, which already handles decimal commas and token boundaries).
+   - The value must occur inside the excerpt, and how that is asked depends on the value's type: an amount against the line's amounts read the parser's own way (`excerptContainsAmount`), a string as a normalised substring (`excerptContainsText`), a date by re-parsing the cited line and comparing the calendar day.
+     This was originally specified as one ported rule, `excerptContainsValue` from catfood-feeder. That port was removed on 2026-08-22 (see `packages/contract/src/guards.ts` for the two measured failures): it compared minor units against the printed decimal, so every honest USD amount failed, and it demanded exactly one numeric token, which no ordinary receipt row satisfies.
+     Strings and dates, meanwhile, had never been checked at all — a fabricated merchant quoting any real line was published as `verified: true`.
    - The parser re-parses the model's evidence line on its own — even for a field it could not derive from the whole document, it can usually read one cited line — and if it reads a different value there than the model claimed, both readings are reported as a disagreement.
    - Line-item amounts are summed and compared against the paid total.
 
