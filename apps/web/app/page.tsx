@@ -2,7 +2,7 @@
 
 // The reviewer-facing surface for POST /api/extract (task-15-brief.md). It
 // posts OCR text (what the pipeline actually consumes — see the note below
-// about imageBase64), then renders every field/item next to the evidence
+// about imageDataUrl), then renders every field/item next to the evidence
 // that earned it: source (parser vs model), verified/unverified, the
 // arithmetic verdict (including the `agrees: null` "could not be computed"
 // state), a rejected model reply, and an evidence box drawn on the image
@@ -14,7 +14,6 @@ import type { OcrLine } from "@receipt-evidence/contract/anchor";
 
 interface ImageInfo {
   dataUrl: string;
-  base64: string;
   naturalWidth: number;
   naturalHeight: number;
 }
@@ -150,8 +149,7 @@ export default function Page() {
     }
     const dataUrl = await readFileAsDataUrl(file);
     const { width, height } = await loadImage(dataUrl);
-    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-    setImage({ dataUrl, base64, naturalWidth: width, naturalHeight: height });
+    setImage({ dataUrl, naturalWidth: width, naturalHeight: height });
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -172,7 +170,7 @@ export default function Page() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          pages: [{ text: ocrText, lines, imageBase64: image?.base64 }],
+          pages: [{ text: ocrText, lines, imageDataUrl: image?.dataUrl }],
         }),
       });
       const body: unknown = await response.json();

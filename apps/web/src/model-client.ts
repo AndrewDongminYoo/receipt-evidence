@@ -80,23 +80,43 @@ function extractOutputText(response: unknown): string {
   throw new Error("model response carried no output_text");
 }
 
+const SYSTEM_PROMPT =
+  "Read this receipt and report only what a deterministic parser could not: every line item, plus any of merchant, purchaseDate, paidTotal, or reference the parser left blank. Every value must quote the exact page excerpt (verbatim substring) it was read from, with the page index it came from. Money is an integer minor unit, never a float. Omit a field you cannot support with a real excerpt rather than guessing.";
+
+/** Builds the request's `input` array. Exported and pure for the same reason
+ * `toStrictSchema` is: a fake `ModelClient` substitutes this whole file, so
+ * it cannot see what the real client sends — only a test over the builder
+ * can, and no test here touches the network.
+ *
+ * A page's image travels only when the caller attached one. The app attaches
+ * a JPEG solely for a page below the scanner's OCR floor (spec step 2), so
+ * an above-floor page must go as text alone: the image staying on the device
+ * is the point of the floor, not an optimisation. */
+export function buildInput(pages: readonly Page[]): OpenAI.Responses.ResponseInput {
+  const content: OpenAI.Responses.ResponseInputMessageContentList = [];
+  for (const [pageIndex, page] of pages.entries()) {
+    content.push({ type: "input_text", text: `Page ${pageIndex}:\n${page.text}` });
+    if (page.imageDataUrl !== undefined) {
+      // `image_url` takes "a fully qualified URL or base64 encoded image in a
+      // data URL" (ResponseInputImage, openai@7.5.0 responses.d.ts:3289-3293),
+      // which is why Page carries the whole data URL rather than bare base64.
+      // `detail` is a required property on that interface, not an optional one.
+      content.push({ type: "input_image", detail: "auto", image_url: page.imageDataUrl });
+    }
+  }
+  return [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content },
+  ];
+}
+
 export function createOpenAIClient(apiKey: string): ModelClient {
   const client = new OpenAI({ apiKey });
   return {
     async complete({ pages }) {
       const response = await client.responses.create({
         model: MODEL,
-        input: [
-          {
-            role: "system",
-            content:
-              "Read this receipt and report only what a deterministic parser could not: every line item, plus any of merchant, purchaseDate, paidTotal, or reference the parser left blank. Every value must quote the exact page excerpt (verbatim substring) it was read from, with the page index it came from. Money is an integer minor unit, never a float. Omit a field you cannot support with a real excerpt rather than guessing.",
-          },
-          {
-            role: "user",
-            content: pages.map((page, pageIndex) => `Page ${pageIndex}:\n${page.text}`).join("\n\n"),
-          },
-        ],
+        input: buildInput(pages),
         text: {
           format: {
             type: "json_schema",

@@ -8,7 +8,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { modelJsonSchema } from "@receipt-evidence/contract/schema";
-import { toStrictSchema } from "../src/model-client.ts";
+import { buildInput, toStrictSchema } from "../src/model-client.ts";
+import type { Page } from "../src/extract.ts";
 
 interface JsonSchemaNode {
   type?: string;
@@ -66,4 +67,53 @@ test("toStrictSchema satisfies OpenAI strict mode on the real emitted schema, at
   const original = modelJsonSchema() as unknown as JsonSchemaNode;
   const transformed = toStrictSchema(original) as JsonSchemaNode;
   assertStrictModeValid(original, transformed, "$");
+});
+
+/** The user message's content parts, in order. `buildInput` is the only place
+ * that decides what leaves the machine, and the fake ModelClient the pipeline
+ * tests use replaces the whole client — so this is the one seam where "does
+ * the image actually travel?" can be asked without a network call. */
+function userParts(pages: readonly Page[]): { type: string; text?: string; image_url?: string | null }[] {
+  const input = buildInput(pages) as { role: string; content: unknown }[];
+  const user = input.find((message) => message.role === "user");
+  assert.ok(user, "buildInput must emit a user message");
+  assert.ok(Array.isArray(user.content), "user content must be a content-part list, not a joined string");
+  return user.content as { type: string; text?: string; image_url?: string | null }[];
+}
+
+const JPEG = "data:image/jpeg;base64,QUJD";
+
+test("buildInput sends a page's image only when the caller attached one", () => {
+  const withImage = userParts([{ text: "TOTAL 12,900", lines: [], imageDataUrl: JPEG }]);
+  assert.deepEqual(
+    withImage.filter((part) => part.type === "input_image"),
+    [{ type: "input_image", detail: "auto", image_url: JPEG }],
+    "a page carrying an image must transmit it verbatim, data URL and all",
+  );
+
+  const withoutImage = userParts([{ text: "TOTAL 12,900", lines: [] }]);
+  assert.deepEqual(
+    withoutImage.filter((part) => part.type === "input_image"),
+    [],
+    "a page above the OCR floor carries no image, so none may be sent",
+  );
+  assert.ok(
+    withoutImage.some((part) => part.text?.includes("TOTAL 12,900")),
+    "the page's text still travels when its image does not",
+  );
+});
+
+test("buildInput attaches the image to the page it belongs to, not to the request", () => {
+  // The spec's real shape: a multi-page receipt where only the second page
+  // fell below the OCR floor. The image must follow its own page's text, or
+  // the model reads it against the wrong page's excerpts.
+  const parts = userParts([
+    { text: "page zero text", lines: [] },
+    { text: "page one text", lines: [], imageDataUrl: JPEG },
+  ]);
+  assert.deepEqual(
+    parts.map((part) => (part.type === "input_image" ? "image" : part.text)),
+    ["Page 0:\npage zero text", "Page 1:\npage one text", "image"],
+    "one text part per page, in page order, with the image directly after the page that carried it",
+  );
 });

@@ -17,7 +17,12 @@ import type { ModelClient } from "./model-client.ts";
 export interface Page {
   text: string;
   lines: readonly OcrLine[];
-  imageBase64?: string;
+  /** A full `data:<media-type>;base64,...` URL, present only for a page the
+   * caller decided to send as an image — below the scanner's OCR floor
+   * (spec step 2). The whole URL rather than bare base64 because the media
+   * type has to travel with the bytes; the model client hands it straight
+   * to the request's `image_url`. */
+  imageDataUrl?: string;
 }
 
 export interface Frame {
