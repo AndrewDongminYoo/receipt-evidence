@@ -9,7 +9,8 @@
     "./guards": "./src/guards.ts",
     "./arithmetic": "./src/arithmetic.ts",
     "./anchor": "./src/anchor.ts",
-    "./schema": "./src/schema.ts"
+    "./schema": "./src/schema.ts",
+    "./response": "./src/response.ts"
   },
   "dependencies": {
     "zod": "4.4.3"
