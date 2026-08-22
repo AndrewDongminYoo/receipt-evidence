@@ -47,7 +47,7 @@ Requires Node 24+ and pnpm 11.
 
 ```bash
 pnpm install
-pnpm test        # 85 tests, no network, no device
+pnpm test        # no network, no device
 pnpm typecheck   # the only type gate — node strips types, it does not check them
 ```
 
