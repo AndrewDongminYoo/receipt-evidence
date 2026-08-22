@@ -10,7 +10,8 @@
     "./arithmetic": "./src/arithmetic.ts",
     "./anchor": "./src/anchor.ts",
     "./schema": "./src/schema.ts",
-    "./response": "./src/response.ts"
+    "./response": "./src/response.ts",
+    "./dates": "./src/dates.ts"
   },
   "dependencies": {
     "zod": "4.4.3"

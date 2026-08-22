@@ -45,16 +45,27 @@ function minorUnits(amount: string): number | null {
   return Number(whole) * 100 + Number(parts[1]);
 }
 
-/** Returns the last amount on `line` in minor currency units, or `null` when
- * the line carries none. Digit runs too long to be money, such as barcodes,
- * are skipped instead of crashing the parse. */
-function amountOf(line: string): number | null {
-  let amount: number | null = null;
+/** Every amount on `line`, in minor currency units, in the order printed.
+ * Digit runs too long to be money, such as barcodes, are skipped rather than
+ * scaled — the same skip `amountOf` has always made, factored out so the
+ * evidence guard can ask "is this value one of the amounts on that line?"
+ * using the parser's own reading of what an amount is. Any other tokenizer
+ * would let the guard and the parser disagree about the same line. */
+export function amountsOnLine(line: string): number[] {
+  const amounts: number[] = [];
   for (const match of withoutDateOrTime(line).matchAll(AMOUNT_PATTERN_G)) {
     const parsed = minorUnits(match[0]);
-    if (parsed !== null) amount = parsed;
+    if (parsed !== null) amounts.push(parsed);
   }
-  return amount;
+  return amounts;
+}
+
+/** Returns the last amount on `line` in minor currency units, or `null` when
+ * the line carries none. Dart's `_amountOf` keeps the last match, so this
+ * reads the tail of `amountsOnLine` rather than re-scanning. */
+function amountOf(line: string): number | null {
+  const amounts = amountsOnLine(line);
+  return amounts.length === 0 ? null : (amounts[amounts.length - 1] as number);
 }
 
 // `currency` is part of the ported signature but, like the Dart source,

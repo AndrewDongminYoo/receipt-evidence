@@ -111,3 +111,51 @@ test("a malformed reply is rejected and reported, not silently emptied", async (
   assert.equal(result.fields.paidTotal?.source, "parser");
   assert.equal(result.fields.paidTotal?.verified, true);
 });
+
+// A USD page, because the two defects below only showed up on one: half the
+// corpus is English and neither was caught until a review probe ran the
+// pipeline rather than reading it.
+// No date line on purpose: the model is only ever asked for what the parser
+// could not derive, so a page whose date the parser reads would never exercise
+// the model's date path at all.
+const USD_PAGE = {
+  text: "BLUE BOTTLE\nSANDWICH  12.99\nTOTAL  12.99\n",
+  lines: [],
+};
+
+test("a fabricated string or date is marked unverified, whatever real line it quotes", async () => {
+  // Both values below quote a line that genuinely exists — the hallucination
+  // this project is actually about. Until 2026-08-22 nothing checked a string
+  // or date value against its excerpt at all, so both shipped as
+  // `verified: true` with an empty `unverified` list.
+  const client = {
+    complete: async () => ({
+      purchaseDate: { value: "1999-01-01", evidence: { pageIndex: 0, excerpt: "BLUE BOTTLE" } },
+      reference: { value: "TOTALLY-MADE-UP-9999", evidence: { pageIndex: 0, excerpt: "TOTAL  12.99" } },
+      items: [],
+    }),
+  };
+  const result = await extract({ pages: [USD_PAGE] }, client, new Date(2026, 7, 22));
+
+  assert.equal(result.modelReply.accepted, true, "the reply is well-formed; this is about values, not shape");
+  assert.equal(result.fields.purchaseDate?.verified, false, "a date that line does not state");
+  assert.equal(result.fields.purchaseDate?.value, "1999-01-01", "kept, never dropped");
+  assert.equal(result.fields.reference?.verified, false, "a reference that line does not state");
+  assert.deepEqual(result.unverified, ["fields.purchaseDate", "fields.reference"]);
+});
+
+test("a correct amount in minor units verifies against the decimal its receipt prints", async () => {
+  // The mirror-image defect, and the more damaging one: the guard compared
+  // 1299 against the literal "12.99" and failed every honest USD amount, so
+  // `unverified` filled up with correct values and stopped meaning anything.
+  const client = {
+    complete: async () => ({
+      items: [{ name: "SANDWICH", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "SANDWICH  12.99" } }],
+    }),
+  };
+  const result = await extract({ pages: [USD_PAGE] }, client, new Date(2026, 7, 22));
+
+  assert.equal(result.fields.currency, "USD");
+  assert.equal(result.items[0]?.verified, true, "the excerpt states 12.99 and 1299 is 12.99 in minor units");
+  assert.deepEqual(result.unverified, []);
+});

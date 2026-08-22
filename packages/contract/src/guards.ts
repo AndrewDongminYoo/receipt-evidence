@@ -1,81 +1,67 @@
 import { normalize } from "./normalize.ts";
+import { amountsOnLine } from "./amounts.ts";
 
-// excerptContainsValue is ported from
-// catfood-feeder/src/lib/source-extraction.ts:288-328. Its helper
-// normalizeDecimalLiteral (and the DECIMAL_COMMA regex it uses) is not
-// defined in that file as the plan brief states — both actually live in
-// catfood-feeder/src/lib/excerpt-match.ts:6,12-31, imported into
-// source-extraction.ts. Ported from there instead; behaviour is unchanged.
+// Two independent questions, and neither implies the other, so a caller must
+// ask both: verifyEvidence asks whether the excerpt is real (does it occur on
+// one line of the page), and excerptContainsAmount / excerptContainsText ask
+// whether the claimed value is actually stated in that excerpt.
 //
-// verifyEvidence is new: it is not a port.
+// This file used to carry `excerptContainsValue`, a port of
+// catfood-feeder/src/lib/excerpt-match.ts:6,12-31. It was REMOVED on
+// 2026-08-22 after a review probe showed it could not do the job here, and
+// keeping a ported-but-unusable guard would only invite a future reader to
+// wire it back in. Two measured failures, both run rather than reasoned:
 //
-// The two guards are independent: verifyEvidence checks the excerpt is real
-// (a substring of the page), excerptContainsValue checks the claimed value is
-// in the excerpt. Neither implies the other — a caller must run both.
+//   excerptContainsValue("SANDWICH  12.99", 1299) === false
+//   excerptContainsValue("커피 2 4,500", 4500)     === false
+//
+// The first is the unit mismatch: it compared the excerpt's printed decimal
+// against `String(value)`, so every correct USD amount in minor units failed,
+// and half this corpus is English. The port's own test even pinned that as
+// expected, with the comment "minor units are the caller's job" — and no
+// caller ever did that job. The second is the token-count rule: it required
+// the excerpt to hold EXACTLY ONE numeric token, which is fine for
+// catfood-feeder's tight quoted spans but not for a whole OCR line, where a
+// quantity beside a price is the ordinary case (schema.ts invites `quantity`,
+// and total.ts:22 documents `TOTAL 2 ITEMS $24.95` as a real total shape).
+//
+// Together those made the `unverified` list report the opposite of the truth:
+// honest values were flagged while a fabricated string sailed through, since
+// nothing checked string or date values at all.
 
 /**
- * Matches a European decimal-comma literal ("2,5"): a comma followed by
- * exactly one or two digits can only be a decimal point, never a thousands
- * grouping (which is always exactly three digits), so this never overlaps
- * with the thousands-grouped case below.
+ * Does the excerpt state this money value?
+ *
+ * "State" is decided by the parser's own reading of the line
+ * (`amountsOnLine`), so the guard and the parser can never disagree about
+ * what an amount is or how it scales to minor units — a token with a decimal
+ * part is cents, one without is already minor units, and a digit run too long
+ * to be money is skipped as a barcode. Any of the line's amounts may match:
+ * a receipt row routinely prints a quantity beside a price.
+ *
+ * WHICH of a line's amounts the value ought to be is a different question,
+ * and this guard deliberately does not answer it — `extract()` re-reads the
+ * cited line with the parser and reports a disagreement. This one only asks
+ * whether the number was made up.
  */
-const DECIMAL_COMMA = /^-?\d+,\d{1,2}$/;
-
-function normalizeDecimalLiteral(value: string): string | null {
-  const match = value.match(/^(-?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i);
-  if (!match || (!match[2] && !match[3])) return null;
-  const sourceInteger = match[2] || "0";
-  const sourceFraction = match[3] ?? "";
-  const exponent = Number(match[4] ?? 0);
-  if (!Number.isSafeInteger(exponent)) return null;
-
-  const digits = `${sourceInteger}${sourceFraction}`;
-  const decimalIndex = sourceInteger.length + exponent;
-  const expanded =
-    decimalIndex <= 0
-      ? `0.${"0".repeat(-decimalIndex)}${digits}`
-      : decimalIndex >= digits.length
-        ? `${digits}${"0".repeat(decimalIndex - digits.length)}`
-        : `${digits.slice(0, decimalIndex)}.${digits.slice(decimalIndex)}`;
-  const [expandedInteger = "0", expandedFraction = ""] = expanded.split(".");
-  const integer = expandedInteger.replace(/^0+(?=\d)/, "") || "0";
-  const fraction = expandedFraction.replace(/0+$/, "");
-  const sign = match[1] === "-" && (integer !== "0" || fraction) ? "-" : "";
-  return `${sign}${integer}${fraction ? `.${fraction}` : ""}`;
+export function excerptContainsAmount(excerpt: string, amountMinor: number): boolean {
+  if (!Number.isInteger(amountMinor)) return false;
+  return amountsOnLine(excerpt.normalize("NFKC")).includes(amountMinor);
 }
 
-/** Does the excerpt state exactly this numeric value (as a single token)? */
-export function excerptContainsValue(excerpt: string, value: number): boolean {
-  const normalizedExcerpt = excerpt.normalize("NFKC").replace(/−/g, "-");
-  if (normalizedExcerpt.includes("⁄")) return false;
-  const numericTokens = normalizedExcerpt.match(/-?(?=[\d,.]*\d)[\d,.]+/g);
-  const numericToken = numericTokens?.[0];
-  const tokenStart = numericToken ? normalizedExcerpt.indexOf(numericToken) : -1;
-  const leadingDecimalFollowsLabel =
-    numericToken?.startsWith(".") &&
-    tokenStart > 0 &&
-    /[\p{L}\p{N}]/u.test(normalizedExcerpt[tokenStart - 1] ?? "");
-  if (
-    numericTokens?.length !== 1 ||
-    !numericToken ||
-    leadingDecimalFollowsLabel ||
-    !(
-      DECIMAL_COMMA.test(numericToken) ||
-      /^-?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?|\.\d+)$/.test(numericToken)
-    )
-  )
-    return false;
-  const normalizedToken = normalizeDecimalLiteral(
-    DECIMAL_COMMA.test(numericToken) ? numericToken.replace(",", ".") : numericToken.replace(/,/g, ""),
-  );
-  const normalizedValue = normalizeDecimalLiteral(String(value));
-  return (
-    normalizedToken !== null &&
-    normalizedValue !== null &&
-    Number.isFinite(value) &&
-    Math.abs(value) <= Number.MAX_SAFE_INTEGER &&
-    normalizedToken === normalizedValue
-  );
+/**
+ * Does the excerpt state this text value, compared the way `verifyEvidence`
+ * compares (NFKC, whitespace collapsed) so the two cannot drift?
+ *
+ * Fails closed on an empty value for the same reason `verifyEvidence` fails
+ * closed on an empty excerpt: every string contains the empty string, so
+ * without this a model returning "" for a merchant would have it published
+ * as verified.
+ */
+export function excerptContainsText(excerpt: string, value: string): boolean {
+  const needle = normalize(value);
+  if (needle === "") return false;
+  return normalize(excerpt).includes(needle);
 }
 
 /**
