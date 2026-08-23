@@ -40,8 +40,9 @@ A receipt's OCR text goes through a deterministic parser first; a model is asked
 - **Money is integer minor units** (`amountMinor`) — KRW whole won, USD cents. Never a float.
 - **Dates are read back with local getters, never `toISOString()`.** The parser builds `new Date(y, m-1, d)` — local midnight — so `toISOString().slice(0,10)` reports the previous day in any positive-offset zone. That bug shipped once here, marked `verified: true`, on every Korean receipt.
 - **The OpenAI model identifier is never written from memory.** It lives in `docs/notes/model-identifier.md` with the URL and date it was read from.
-- Versions are pinned, not floated: `zod@4.4.3`, `openai@7.5.0`, `next@16.3.1`, `react@19.2.8` (web), `expo@57.0.14`, `react-native@0.86.2` + `react@19.2.3` (mobile).
-  The mobile pair comes from `expo@57.0.14`'s `bundledNativeModules.json`, not from npm's `latest` — Expo's prebuild and autolinking are coupled to the version the SDK was built against. `pnpm peers check` reports one unmet peer for this (`react-dom@19.2.8` wants `^19.2.8`, sees mobile's 19.2.3); each app still links its own react, verified through `apps/*/node_modules/react`.
+- Versions are pinned, not floated: `zod@4.4.3`, `openai@7.5.0`, `next@16.3.1`, `react@19.2.8` (web), `expo@57.0.15`, `expo-file-system@57.0.5`, `react-native@0.86.2` + `react@19.2.3` (mobile).
+  The mobile pins come from Expo, not from npm's `latest` — prebuild and autolinking are coupled to what the SDK was built against, and `react-native@0.87.0` (npm's latest) is newer than any Expo SDK supports. The `react-native`/`react` pair was read from `bundledNativeModules.json`; `expo` and `expo-file-system` were raised from 57.0.14/57.0.4 by `expo run:ios` itself during the first native build, which aligns the manifest as part of prebuild. Those are the versions the build that succeeded actually used, so they are the ones recorded — note the CLI prints `Updated package.json | no changes` while doing it, so check `git status` after a prebuild rather than trusting that line.
+  `pnpm peers check` reports one unmet peer (`react-dom@19.2.8` wants `^19.2.8`, sees mobile's 19.2.3); each app still links its own react, verified through `apps/*/node_modules/react`.
 
 ## The parser is a port, and the port is the point
 
