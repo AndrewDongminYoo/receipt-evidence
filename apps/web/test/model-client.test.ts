@@ -74,7 +74,7 @@ test("toStrictSchema satisfies OpenAI strict mode on the real emitted schema, at
  * tests use replaces the whole client — so this is the one seam where "does
  * the image actually travel?" can be asked without a network call. */
 function userParts(pages: readonly Page[]): { type: string; text?: string; image_url?: string | null }[] {
-  const input = buildInput(pages) as { role: string; content: unknown }[];
+  const input = buildInput(pages, []) as { role: string; content: unknown }[];
   const user = input.find((message) => message.role === "user");
   assert.ok(user, "buildInput must emit a user message");
   assert.ok(Array.isArray(user.content), "user content must be a content-part list, not a joined string");
@@ -115,5 +115,29 @@ test("buildInput attaches the image to the page it belongs to, not to the reques
     parts.map((part) => (part.type === "input_image" ? "image" : part.text)),
     ["Page 0:\npage zero text", "Page 1:\npage one text", "image"],
     "one text part per page, in page order, with the image directly after the page that carried it",
+  );
+});
+
+test("buildInput names the header fields the parser left blank, and never its values", () => {
+  const missing = buildInput([{ text: "TOTAL 12,900", lines: [] }], ["merchant", "reference"]) as {
+    role: string;
+    content: unknown;
+  }[];
+  const instructions = missing
+    .filter((message) => message.role === "system")
+    .map((message) => String(message.content))
+    .join("\n");
+
+  assert.match(instructions, /merchant, reference/, "the model is told which fields to answer for");
+  assert.doesNotMatch(instructions, /purchaseDate|paidTotal/, "and not told to answer for ones the parser filled");
+
+  const none = buildInput([{ text: "TOTAL 12,900", lines: [] }], []) as { role: string; content: unknown }[];
+  assert.match(
+    none
+      .filter((message) => message.role === "system")
+      .map((message) => String(message.content))
+      .join("\n"),
+    /line items only/,
+    "with every header field derived, only items are worth asking for",
   );
 });

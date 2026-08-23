@@ -42,7 +42,15 @@ function minorUnits(amount: string): number | null {
   // would wrap silently.
   if (whole.length > MAX_WHOLE_DIGITS) return null;
   if (parts.length === 1) return Number(whole);
-  return Number(whole) * 100 + Number(parts[1]);
+  const scaled = Number(whole) * 100 + Number(parts[1]);
+  // Dart does this arithmetic in a 64-bit int, where it is exact. JS has only
+  // doubles, so scaling a long run silently rounds: "123456789012345.67" came
+  // back as 12345678901234568, one off the printed 12345678901234567 — and the
+  // guard then verified a value the line never stated, because both are the
+  // same double and Number.isInteger cannot tell. MAX_WHOLE_DIGITS is 15, so
+  // the port was unsafe over its own top two digit-lengths. A number that
+  // cannot be represented is not an amount; treated like a barcode and skipped.
+  return Number.isSafeInteger(scaled) ? scaled : null;
 }
 
 /** Every amount on `line`, in minor currency units, in the order printed.

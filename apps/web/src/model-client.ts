@@ -20,9 +20,17 @@ import type { Page } from "./extract.ts";
 
 const MODEL = "gpt-5.6-sol";
 
-/** One method, so a test can substitute a fake and never call OpenAI. */
+/** One method, so a test can substitute a fake and never call OpenAI.
+ *
+ * `missingFields` names the header fields the parser could NOT derive. The
+ * prompt has always told the model to report "any of merchant, purchaseDate,
+ * paidTotal, or reference the parser left blank", but nothing conveyed which
+ * those were, so the model had to guess — and `extract` then discarded every
+ * answer for a field the parser had already filled, billed and unread. On this
+ * corpus the parser fills merchant and paidTotal on 12 of 12, so those two
+ * answers were generated and thrown away on every single request. */
 export interface ModelClient {
-  complete(input: { pages: readonly Page[] }): Promise<unknown>;
+  complete(input: { pages: readonly Page[]; missingFields: readonly string[] }): Promise<unknown>;
 }
 
 // Recurses into every nested object/array node — modelItemSchema's own
@@ -81,7 +89,17 @@ function extractOutputText(response: unknown): string {
 }
 
 const SYSTEM_PROMPT =
-  "Read this receipt and report only what a deterministic parser could not: every line item, plus any of merchant, purchaseDate, paidTotal, or reference the parser left blank. Every value must quote the exact page excerpt (verbatim substring) it was read from, with the page index it came from. Money is an integer minor unit, never a float. Omit a field you cannot support with a real excerpt rather than guessing.";
+  "Read this receipt and report only what a deterministic parser could not. Every value must quote the exact page excerpt (verbatim substring) it was read from, with the page index it came from. Money is an integer minor unit, never a float. Omit a field you cannot support with a real excerpt rather than guessing.";
+
+/** The parser's own findings are not sent — only which header fields it left
+ * blank. Sending its values would invite the model to echo them back, and an
+ * echo is not independent evidence. */
+function missingFieldsInstruction(missingFields: readonly string[]): string {
+  if (missingFields.length === 0) {
+    return "Report line items only. The parser already derived every header field, and an answer for one would be discarded.";
+  }
+  return `Report every line item, plus these header fields and no others, which the parser could not derive: ${missingFields.join(", ")}.`;
+}
 
 /** Builds the request's `input` array. Exported and pure for the same reason
  * `toStrictSchema` is: a fake `ModelClient` substitutes this whole file, so
@@ -92,7 +110,7 @@ const SYSTEM_PROMPT =
  * a JPEG solely for a page below the scanner's OCR floor (spec step 2), so
  * an above-floor page must go as text alone: the image staying on the device
  * is the point of the floor, not an optimisation. */
-export function buildInput(pages: readonly Page[]): OpenAI.Responses.ResponseInput {
+export function buildInput(pages: readonly Page[], missingFields: readonly string[]): OpenAI.Responses.ResponseInput {
   const content: OpenAI.Responses.ResponseInputMessageContentList = [];
   for (const [pageIndex, page] of pages.entries()) {
     content.push({ type: "input_text", text: `Page ${pageIndex}:\n${page.text}` });
@@ -106,6 +124,7 @@ export function buildInput(pages: readonly Page[]): OpenAI.Responses.ResponseInp
   }
   return [
     { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: missingFieldsInstruction(missingFields) },
     { role: "user", content },
   ];
 }
@@ -113,10 +132,10 @@ export function buildInput(pages: readonly Page[]): OpenAI.Responses.ResponseInp
 export function createOpenAIClient(apiKey: string): ModelClient {
   const client = new OpenAI({ apiKey });
   return {
-    async complete({ pages }) {
+    async complete({ pages, missingFields }) {
       const response = await client.responses.create({
         model: MODEL,
-        input: buildInput(pages),
+        input: buildInput(pages, missingFields),
         text: {
           format: {
             type: "json_schema",

@@ -239,7 +239,13 @@ export async function extract(
   // The mobile app scans with maxPages: 3, so this is its ordinary path.
   const parsed = pages.length === 0 ? emptyReceipt() : analyze(pages.map((page) => page.text).join("\n"), referenceDate);
 
-  const raw = await client.complete({ pages });
+  // Only the field NAMES the parser left blank — never its values. See
+  // ModelClient: the prompt has always said "the fields the parser left
+  // blank", and until now nothing told the model which those were.
+  const missingFields = (["merchant", "purchaseDate", "paidTotal", "reference"] as const).filter(
+    (field) => parsed[field] === null,
+  );
+  const raw = await client.complete({ pages, missingFields });
   const modelParse = ModelReplySchema.safeParse(raw);
   // A reply that fails the schema entirely (missing evidence, wrong types,
   // an invented field) yields no model-derived facts rather than a crash —
