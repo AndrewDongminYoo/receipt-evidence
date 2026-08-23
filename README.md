@@ -66,12 +66,21 @@ pnpm --filter web dev            # http://localhost:3000
 `react-native-receipt-scanner` is a native module, so the app needs a dev client:
 
 ```bash
-pnpm --filter @receipt-evidence/mobile prebuild
-EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 pnpm --filter @receipt-evidence/mobile ios
+pnpm --filter web dev                                   # the API the app posts to
+pnpm --filter @receipt-evidence/mobile prebuild         # generates ios/ and android/
+pnpm --filter @receipt-evidence/mobile ios
 ```
 
 `ios/` and `android/` are generated rather than committed, so `prebuild` is the first step on a fresh clone.
-The API URL has to be a LAN address: a phone's `localhost` is the phone.
+
+No API URL to configure: the app derives it from the dev server it was loaded from, which is an address the device can already reach.
+To point it somewhere else, set `EXPO_PUBLIC_API_URL` — but set it **where Metro runs**, not on the `ios` command:
+
+```bash
+EXPO_PUBLIC_API_URL=https://receipts.example.com pnpm --filter @receipt-evidence/mobile start
+```
+
+`EXPO_PUBLIC_*` variables are substituted into the source by Babel during Metro's transform, so the value has to be in Metro's environment. Putting it on `expo run:ios` reaches the native build and never the JS bundle whenever a dev server is already running — and `expo run:ios` prints `Skipping dev server` in exactly that case.
 
 A page is sent as text alone when its OCR clears the scanner's floor; only a page below the floor also uploads its JPEG, so the image leaves the device exactly when the text cannot carry the work.
 

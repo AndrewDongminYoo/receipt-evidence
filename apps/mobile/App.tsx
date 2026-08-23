@@ -3,18 +3,20 @@
 // every extracted value beside the pixels it was read from.
 import { useState } from "react";
 import { ActivityIndicator, Button, Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
 import { File } from "expo-file-system";
 import { scan, DEFAULT_OCR_FLOOR } from "react-native-receipt-scanner";
 import type { ReceiptImage } from "react-native-receipt-scanner";
 import type { ExtractedField, ExtractedItem, ExtractionResponse, Frame, Page } from "@receipt-evidence/contract/response";
+import { apiBaseUrl } from "./src/api.ts";
 import { clearsFloor } from "./src/capture.ts";
 import { EvidenceOverlay } from "./src/EvidenceOverlay.tsx";
 
-// The dev client talks to a machine on the LAN, not to localhost — an
-// iPhone's localhost is the iPhone. Set EXPO_PUBLIC_API_URL to the host
-// running `pnpm --filter web dev` (see the README).
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+// Derived from the dev server this bundle came from, so it points at the
+// machine running `pnpm --filter web dev` without being configured. See
+// src/api.ts for why the env var alone was not enough.
+const API_URL = apiBaseUrl(process.env.EXPO_PUBLIC_API_URL, Constants.expoConfig?.hostUri);
 
 /** The page whose photo the result view shows. Every other page's values are
  * still listed — only their boxes have nowhere to be drawn. */
