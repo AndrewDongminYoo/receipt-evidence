@@ -10,7 +10,7 @@
 // arithmetic verdict (including the `agrees: null` "could not be computed"
 // state), a rejected model reply, and an evidence box drawn on the image
 // when one was anchored.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import type { ExtractedField, ExtractedItem, ExtractionResponse, Frame } from "../src/extract.ts";
 import type { OcrLine } from "@receipt-evidence/contract/anchor";
@@ -158,6 +158,10 @@ export default function Page() {
   // with it — a checkbox left ticked from a previous upload must not carry
   // over to the next one.
   const [sendImage, setSendImage] = useState(false);
+  // Which file selection is current. A ref, not state: it has to be readable
+  // by an async continuation that started before the newer selection existed,
+  // and bumping it must not re-render.
+  const selectionCounter = useRef(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractionResponse | null>(null);
@@ -176,6 +180,12 @@ export default function Page() {
     setSendImage(false);
     setResult(null);
     if (!file) return;
+    // Clearing up front is not enough on its own: decoding is asynchronous and
+    // a superseded selection still resolves. Pick photo A, then photo B before
+    // A finishes, and A's `setImage` lands afterwards — the page then shows A
+    // while the file input says B, which is the consent bug wearing a
+    // different hat. Only the newest selection may write.
+    const selection = (selectionCounter.current += 1);
     // Both helpers reject — an unreadable file, an undecodable image (a HEIC
     // on a browser without support, a truncated download). Uncaught, the
     // rejection was silent and `image` kept its previous value, so the next
@@ -183,9 +193,11 @@ export default function Page() {
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const { width, height } = await loadImage(dataUrl);
+      if (selectionCounter.current !== selection) return;
       setImage({ dataUrl, naturalWidth: width, naturalHeight: height });
       setError(null);
     } catch (err) {
+      if (selectionCounter.current !== selection) return;
       setError(`could not read that image: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
