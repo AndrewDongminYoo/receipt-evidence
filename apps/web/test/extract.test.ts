@@ -226,3 +226,26 @@ test("a quantity the cited line never printed makes the item unverified", async 
   assert.equal(result.items[0]?.verified, false);
   assert.equal(result.items[0]?.quantity, 1, "kept and marked, never dropped");
 });
+
+test("a multi-page scan is one document, so a header page cannot supply the total", async () => {
+  // Reading page 0 alone was worse than incomplete: analyze's largest-amount
+  // fallback fires on a page carrying no money, so a street number shipped as
+  // paidTotal with verified: true, and currency came back KRW. The mobile app
+  // scans with maxPages: 3, so this is its ordinary path.
+  const client = { complete: async () => ({ items: [] }) };
+  const result = await extract(
+    {
+      pages: [
+        { text: "BLUE BOTTLE COFFEE\n123 MAIN ST\nSAN FRANCISCO CA\n", lines: [] },
+        { text: "SANDWICH  12.99\nTAX  1.05\nTOTAL  $14.04\n", lines: [] },
+      ],
+    },
+    client,
+    new Date(2026, 7, 22),
+  );
+
+  assert.equal(result.fields.currency, "USD", "the money is on page 1, and so is the currency evidence");
+  assert.equal(result.fields.paidTotal?.value, 1404);
+  assert.equal(result.fields.paidTotal?.evidence.excerpt, "TOTAL  $14.04");
+  assert.equal(result.fields.paidTotal?.evidence.pageIndex, 1, "evidence must name the page it is actually on");
+});

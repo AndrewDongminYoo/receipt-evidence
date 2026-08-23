@@ -11,7 +11,8 @@
     "./anchor": "./src/anchor.ts",
     "./schema": "./src/schema.ts",
     "./response": "./src/response.ts",
-    "./dates": "./src/dates.ts"
+    "./dates": "./src/dates.ts",
+    "./evidence": "./src/evidence.ts"
   },
   "dependencies": {
     "zod": "4.4.3"

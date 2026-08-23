@@ -2,7 +2,7 @@
 // import needed for this shape) — https://nextjs.org/docs/app/api-reference/file-conventions/route.
 import { extract } from "../../../src/extract.ts";
 import { createOpenAIClient } from "../../../src/model-client.ts";
-import { isRequestBody } from "../../../src/request.ts";
+import { extractionReferenceDate, isRequestBody } from "../../../src/request.ts";
 
 export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -36,7 +36,9 @@ export async function POST(request: Request): Promise<Response> {
   // response below — createOpenAIClient only holds it in closure.
   const client = createOpenAIClient(apiKey);
   try {
-    const result = await extract({ pages: body.pages }, client, new Date());
+      // Padded by a day — see extractionReferenceDate for why.
+    const referenceDate = extractionReferenceDate(new Date());
+    const result = await extract({ pages: body.pages }, client, referenceDate);
     return Response.json(result);
   } catch (error) {
     // The model call is the one thing here that can fail for reasons outside

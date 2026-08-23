@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { POST } from "../app/api/extract/route.ts";
-import { isRequestBody } from "../src/request.ts";
+import { extractionReferenceDate, isRequestBody } from "../src/request.ts";
 
 // route.ts reads the key inside POST, not at import time, so setting it here
 // is enough.
@@ -70,4 +70,34 @@ test("isRequestBody accepts the requests the two clients actually send", () => {
   assert.equal(isRequestBody({ pages: [{ ...VALID_PAGE, imageDataUrl: "data:image/jpeg;base64,QUJD" }] }), true);
   assert.equal(isRequestBody({ pages: [{ text: "", lines: [] }] }), true, "an empty page is a caller's problem, not malformed");
   assert.equal(isRequestBody({ pages: [VALID_PAGE, VALID_PAGE] }), true, "a multi-page scan");
+});
+
+test("the reference date carries a day of slack, so a receipt is not future-dated by the server's zone", async () => {
+  const now = new Date(Date.UTC(2026, 6, 1, 23, 0, 0)); // 2026-07-02 08:00 KST
+  assert.equal(
+    extractionReferenceDate(now).toISOString(),
+    "2026-07-02T23:00:00.000Z",
+    "exactly one day, not a fuzzier window",
+  );
+
+  // The behaviour it buys, asserted through the parser rather than the clock.
+  // The zone has to be pinned: this whole failure only exists where the
+  // SERVER's local midnight for the receipt's date lands after `now`, so under
+  // the author's own TZ=Asia/Seoul the unpadded case passes and the test would
+  // prove nothing. Same instant, deployment's zone.
+  const { analyze } = await import("@receipt-evidence/contract/analyze");
+  const receipt = "GS25\n2026.07.02\n합계 4,500\n";
+  const originalTz = process.env.TZ;
+  try {
+    process.env.TZ = "UTC"; // Node re-reads TZ per Date construction.
+    assert.equal(analyze(receipt, now).purchaseDate, null, "unpadded, a UTC server loses the date");
+    assert.notEqual(
+      analyze(receipt, extractionReferenceDate(now)).purchaseDate,
+      null,
+      "padded, the receipt keeps its date",
+    );
+  } finally {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  }
 });

@@ -3,6 +3,7 @@
 // claim `verified: true`. Takes the model client as a parameter (Task 14
 // brief) so tests substitute a fake and never call OpenAI.
 import { analyze } from "@receipt-evidence/contract/analyze";
+import { evidenceLines } from "@receipt-evidence/contract/evidence";
 import type { ParsedField, ParsedReceipt } from "@receipt-evidence/contract/analyze";
 import { verifyEvidence, excerptContainsAmount, excerptContainsText } from "@receipt-evidence/contract/guards";
 import { parseDate } from "@receipt-evidence/contract/dates";
@@ -75,13 +76,37 @@ interface Candidate<T> {
 /** The parser's reading wins when it has one; the model is asked only for the
  * gaps. Both come out as the same Candidate, and both are then checked by
  * `resolve` below — the parser gets no shortcut. */
+/** Which page a parser evidence line came from.
+ *
+ * `analyze` is handed every page's text joined together, so its `lineIndex`
+ * counts non-blank lines across the whole scan. Each page contributes a known
+ * number of them, so a running total maps the global index back — exactly,
+ * without re-searching the text and without the ambiguity a text search would
+ * hit when two pages print the same line. Out of range falls back to page 0,
+ * which is where a single-page scan's lines all are anyway. */
+function pageOfLine(lineIndex: number, pages: readonly Page[]): number {
+  let remaining = lineIndex;
+  for (const [pageIndex, page] of pages.entries()) {
+    const count = evidenceLines(page.text).length;
+    if (remaining < count) return pageIndex;
+    remaining -= count;
+  }
+  return 0;
+}
+
 function candidateFor<P, T>(
   parsed: ParsedField<P> | null,
   fromParsed: (value: P) => T,
   model: { value: T; evidence: { pageIndex: number; excerpt: string } } | undefined,
+  pages: readonly Page[],
 ): Candidate<T> | undefined {
   if (parsed !== null) {
-    return { value: fromParsed(parsed.value), source: "parser", pageIndex: 0, excerpt: parsed.evidence.text };
+    return {
+      value: fromParsed(parsed.value),
+      source: "parser",
+      pageIndex: pageOfLine(parsed.evidence.lineIndex, pages),
+      excerpt: parsed.evidence.text,
+    };
   }
   if (model === undefined) return undefined;
   return { value: model.value, source: "model", pageIndex: model.evidence.pageIndex, excerpt: model.evidence.excerpt };
@@ -203,12 +228,16 @@ export async function extract(
   referenceDate: Date,
 ): Promise<ExtractionResponse> {
   const { pages } = request;
-  const primaryPage = pages[0];
-  // The deterministic parser (analyze.ts) takes one document's raw text; a
-  // multi-page receipt still has one primary page for header fields, same as
-  // due_back's own single-document assumption. Items are asked from the
-  // model across every page (see model-client.ts's prompt), not just this one.
-  const parsed = primaryPage === undefined ? emptyReceipt() : analyze(primaryPage.text, referenceDate);
+  // The parser reads the WHOLE scan as one document, because that is what it
+  // is — three captures of one receipt, not three receipts. Reading page 0
+  // alone was worse than incomplete: on a scan whose first page is the shop
+  // header and whose totals are on the second, `analyze`'s largest-amount
+  // fallback fires on a page with no money at all, so a street number ships
+  // as the paid total. Measured: pages `["BLUE BOTTLE COFFEE / 123 MAIN ST /
+  // SAN FRANCISCO CA", "SANDWICH 12.99 / TAX 1.05 / TOTAL $14.04"]` returned
+  // `paidTotal 123, verified: true` from `123 MAIN ST`, and currency KRW.
+  // The mobile app scans with maxPages: 3, so this is its ordinary path.
+  const parsed = pages.length === 0 ? emptyReceipt() : analyze(pages.map((page) => page.text).join("\n"), referenceDate);
 
   const raw = await client.complete({ pages });
   const modelParse = ModelReplySchema.safeParse(raw);
@@ -234,19 +263,19 @@ export async function extract(
   const same = <T,>(value: T): T => value;
   const merchant = resolve(
     "fields.merchant",
-    candidateFor(parsed.merchant, same, reply.merchant),
+    candidateFor(parsed.merchant, same, reply.merchant, pages),
     excerptContainsText,
     pages,
     unverified,
   );
   const purchaseDate = resolve(
     "fields.purchaseDate",
-    candidateFor(parsed.purchaseDate, toIsoDate, reply.purchaseDate),
+    candidateFor(parsed.purchaseDate, toIsoDate, reply.purchaseDate, pages),
     excerptStatesDate,
     pages,
     unverified,
   );
-  const paidTotalCandidate = candidateFor(parsed.paidTotal, same, reply.paidTotal);
+  const paidTotalCandidate = candidateFor(parsed.paidTotal, same, reply.paidTotal, pages);
   const paidTotal = resolve("fields.paidTotal", paidTotalCandidate, excerptContainsAmount, pages, unverified);
   // Separate from the guard, and runs whatever the guard decided: a value can
   // be verified and still disagree. MODEL values only — see noteDisagreement.
@@ -255,7 +284,7 @@ export async function extract(
   }
   const reference = resolve(
     "fields.reference",
-    candidateFor(parsed.reference, same, reply.reference),
+    candidateFor(parsed.reference, same, reply.reference, pages),
     excerptContainsText,
     pages,
     unverified,
