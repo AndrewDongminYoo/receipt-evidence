@@ -49,9 +49,21 @@ export function excerptContainsAmount(excerpt: string, amountMinor: number): boo
   return amountsOnLine(excerpt.normalize("NFKC")).includes(amountMinor);
 }
 
+/** Characters that make two neighbouring glyphs part of one token. `-` and
+ * `_` are in because a reference number is written `A-12345`; `.` and `,` are
+ * out so a value at the end of a sentence still matches. */
+const TOKEN_CHARACTER = /[\p{L}\p{N}_-]/u;
+
 /**
  * Does the excerpt state this text value, compared the way `verifyEvidence`
  * compares (NFKC, whitespace collapsed) so the two cannot drift?
+ *
+ * The match must stand on its own token boundaries. A bare substring test
+ * verified values the line never stated: `("승인번호 A-12345", "12345")` was
+ * true, so a model reporting a truncated reference shipped as fact, and
+ * `("SUBTOTAL 12.99", "TOTAL")` was true for the same reason. The amount
+ * guard above avoids this by reading the line into tokens; this is the
+ * string equivalent.
  *
  * Fails closed on an empty value for the same reason `verifyEvidence` fails
  * closed on an empty excerpt: every string contains the empty string, so
@@ -61,7 +73,19 @@ export function excerptContainsAmount(excerpt: string, amountMinor: number): boo
 export function excerptContainsText(excerpt: string, value: string): boolean {
   const needle = normalize(value);
   if (needle === "") return false;
-  return normalize(excerpt).includes(needle);
+  const haystack = normalize(excerpt);
+  const startsToken = TOKEN_CHARACTER.test(needle[0] ?? "");
+  const endsToken = TOKEN_CHARACTER.test(needle[needle.length - 1] ?? "");
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + 1)) {
+    const before = at === 0 ? "" : (haystack[at - 1] ?? "");
+    const after = haystack[at + needle.length] ?? "";
+    // Only an edge where BOTH the needle and its neighbour are token
+    // characters is a cut through the middle of a word.
+    const cutBefore = startsToken && before !== "" && TOKEN_CHARACTER.test(before);
+    const cutAfter = endsToken && after !== "" && TOKEN_CHARACTER.test(after);
+    if (!cutBefore && !cutAfter) return true;
+  }
+  return false;
 }
 
 /**

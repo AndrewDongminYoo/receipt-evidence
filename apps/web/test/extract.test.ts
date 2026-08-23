@@ -12,12 +12,16 @@ const PAGE = {
 };
 
 test("a model item backed by real evidence is verified and anchored", async () => {
+  // No `quantity`: the line reads `커피 4,500` and states no count, and the
+  // schema makes quantity optional exactly so the model omits what it cannot
+  // read. This fixture used to claim `quantity: 1` while calling itself
+  // "backed by real evidence" — a value the cited line does not carry, which
+  // is the shape this project exists to catch. The guard now catches it, and
+  // the test below pins that; the fixture was corrected rather than the rule.
   const client = {
     async complete() {
       return {
-        items: [
-          { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
-        ],
+        items: [{ name: "커피", amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } }],
       };
     },
   };
@@ -158,4 +162,67 @@ test("a correct amount in minor units verifies against the decimal its receipt p
   assert.equal(result.fields.currency, "USD");
   assert.equal(result.items[0]?.verified, true, "the excerpt states 12.99 and 1299 is 12.99 in minor units");
   assert.deepEqual(result.unverified, []);
+});
+
+test("an item's name and quantity are checked against its line, not just its amount", async () => {
+  // The excerpt is real and the amount is genuinely on it — only the name and
+  // quantity are invented. Checking the amount alone marked the whole item
+  // verified, so both clients showed "Whisky ×99" under a verified badge.
+  const client = {
+    complete: async () => ({
+      items: [
+        { name: "Whisky", quantity: 99, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 7, 22));
+
+  assert.equal(result.items[0]?.verified, false, "a fabricated name cannot ride a real amount");
+  assert.equal(result.items[0]?.name, "Whisky", "kept and marked, never dropped");
+  assert.deepEqual(result.unverified, ["items[0]"]);
+});
+
+test("a fabricated name alone is enough to make an item unverified", async () => {
+  // Separate from the case above on purpose: there the invented quantity
+  // would have failed the item anyway, so that test passed with the name
+  // check deleted. This one carries no quantity, so only the name can fail it.
+  const client = {
+    complete: async () => ({
+      items: [{ name: "Whisky", amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } }],
+    }),
+  };
+  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 7, 22));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.deepEqual(result.unverified, ["items[0]"]);
+});
+
+test("an item whose name and quantity the line does state is verified", async () => {
+  // The guard above must not reject honest items: this row prints the name,
+  // the quantity and the price, and all three are claimed as printed.
+  const client = {
+    complete: async () => ({
+      items: [{ name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 1 4,500" } }],
+    }),
+  };
+  const page = { text: "GS25\n커피 1 4,500\n합계 4,500\n", lines: [] };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 22));
+
+  assert.equal(result.items[0]?.verified, true);
+  assert.deepEqual(result.unverified, []);
+});
+
+test("a quantity the cited line never printed makes the item unverified", async () => {
+  // The realistic version of the finding above, and the reason the rule is
+  // kept strict: `커피 4,500` states no count, so a helpful `quantity: 1` is
+  // still a value with no evidence behind it.
+  const client = {
+    complete: async () => ({
+      items: [{ name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } }],
+    }),
+  };
+  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 7, 22));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[0]?.quantity, 1, "kept and marked, never dropped");
 });

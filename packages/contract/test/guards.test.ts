@@ -105,3 +105,14 @@ test("a fabricated model value cannot pass the guard", () => {
     "a real line quoted for a value it never carried: only the value guard catches it",
   );
 });
+
+test("excerptContainsText requires the value to stand on its own token boundaries", () => {
+  // A bare substring test shipped both of these as verified.
+  assert.equal(excerptContainsText("승인번호 A-12345", "A-12345"), true, "the reference the line states");
+  assert.equal(excerptContainsText("승인번호 A-12345", "12345"), false, "a truncation of it is not it");
+  assert.equal(excerptContainsText("SUBTOTAL 12.99", "TOTAL"), false, "TOTAL is not what SUBTOTAL says");
+  assert.equal(excerptContainsText("BLUE BOTTLE COFFEE", "O"), false, "a single letter is not a merchant");
+  // …without rejecting the values a receipt really does print.
+  assert.equal(excerptContainsText("주문번호: A-12345.", "A-12345"), true, "punctuation is not a token character");
+  assert.equal(excerptContainsText("TOTAL 12.99 SUBTOTAL 12.99", "SUBTOTAL"), true, "a later occurrence still counts");
+});

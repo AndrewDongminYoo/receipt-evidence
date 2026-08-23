@@ -131,6 +131,20 @@ function excerptStatesDate(excerpt: string, isoDate: string): boolean {
   return reparsed !== null && toIsoDate(reparsed) === isoDate;
 }
 
+/**
+ * Reports when the parser reads a different number out of the cited line than
+ * the claim says. It applies to MODEL values only, and callers must not run it
+ * on a parser value: both sides would be the same `analyze()` over the same
+ * text, so it could only ever agree.
+ *
+ * That was not a theoretical gap. Run over all 12 fixtures with a no-op model
+ * client, `disagreements` came back empty on 12 of 12 — including the five
+ * totals `expected.json` marks wrong, among them EN-05's 78901234567890 read
+ * off a cashier ID. A reader could take that empty list as the parser having
+ * been cross-checked and found consistent. Nothing cross-checks the parser:
+ * `docs/notes/corpus-baseline.md` is the record of where it is wrong, and it
+ * was made by comparing against a human-written manifest, not by the pipeline.
+ */
 function noteDisagreement(
   path: string,
   excerpt: string,
@@ -155,7 +169,18 @@ function buildItem(
   const path = `items[${index}]`;
   const { pageIndex, excerpt } = item.evidence;
   const text = pageText(pages, pageIndex);
-  const verified = verifyEvidence(excerpt, text) && excerptContainsAmount(excerpt, item.amountMinor);
+  // Every part of the item has to be stated on the cited line, not just the
+  // money. Checking the amount alone let a model quote a real priced row and
+  // attach whatever name and quantity it liked — `{name: "Whisky", quantity:
+  // 99, amountMinor: 4500}` citing `커피 4,500` verified, and both clients
+  // then showed the invented name under a verified badge. A quantity is
+  // optional in the schema precisely so the model omits what it cannot read;
+  // one it does supply is a claim like any other and is checked as one.
+  const verified =
+    verifyEvidence(excerpt, text) &&
+    excerptContainsAmount(excerpt, item.amountMinor) &&
+    excerptContainsText(excerpt, item.name) &&
+    (item.quantity === undefined || excerptContainsAmount(excerpt, item.quantity));
   if (!verified) unverified.push(path);
   noteDisagreement(path, excerpt, item.amountMinor, referenceDate, disagreements);
   return {
@@ -223,10 +248,9 @@ export async function extract(
   );
   const paidTotalCandidate = candidateFor(parsed.paidTotal, same, reply.paidTotal);
   const paidTotal = resolve("fields.paidTotal", paidTotalCandidate, excerptContainsAmount, pages, unverified);
-  // The disagreement check is separate from the guard, and runs whatever the
-  // guard decided: the parser re-reads the cited line on its own and reports
-  // when its reading differs. A value can be verified and still disagree.
-  if (paidTotalCandidate !== undefined) {
+  // Separate from the guard, and runs whatever the guard decided: a value can
+  // be verified and still disagree. MODEL values only — see noteDisagreement.
+  if (paidTotalCandidate?.source === "model") {
     noteDisagreement("fields.paidTotal", paidTotalCandidate.excerpt, paidTotalCandidate.value, referenceDate, disagreements);
   }
   const reference = resolve(
