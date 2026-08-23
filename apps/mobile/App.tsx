@@ -112,6 +112,7 @@ export default function App() {
     <ScrollView contentContainerStyle={styles.screen}>
       <StatusBar style="dark" />
       <Text style={styles.title}>Receipt Evidence</Text>
+      <Text style={styles.muted}>{API_URL}</Text>
       <View style={styles.actions}>
         <Button title="Scan" onPress={() => void capture("camera")} disabled={status.kind === "working"} />
         <Button title="Pick" onPress={() => void capture("gallery")} disabled={status.kind === "working"} />
@@ -123,7 +124,17 @@ export default function App() {
           <Text style={styles.muted}>{status.step}…</Text>
         </View>
       )}
-      {status.kind === "failed" && <Text style={styles.failed}>{status.message}</Text>}
+      {status.kind === "failed" && (
+        <View>
+          <Text style={styles.failed}>{status.message}</Text>
+          {/* The address, always, on the failure that names it least. "Could
+              not connect to the server" is the same sentence whether the API
+              is down, the phone is on another network, or the app resolved a
+              host it can never reach — and without the URL each of those
+              costs a round trip to tell apart. */}
+          <Text style={styles.muted}>posting to {API_URL}/api/extract</Text>
+        </View>
+      )}
       {status.kind === "done" && <Result image={status.image} result={status.result} />}
     </ScrollView>
   );

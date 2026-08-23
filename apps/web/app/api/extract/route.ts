@@ -5,11 +5,13 @@ import { createOpenAIClient } from "../../../src/model-client.ts";
 import { extractionReferenceDate, isRequestBody } from "../../../src/request.ts";
 
 export async function POST(request: Request): Promise<Response> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return Response.json({ error: "OPENAI_API_KEY is not configured" }, { status: 500 });
-  }
-
+  // The request is judged before the server's own configuration is. Checking
+  // the key first meant a caller who sent garbage was told "OPENAI_API_KEY is
+  // not configured" — measured against a real running server, `-d 'not json'`
+  // came back 500 with that message. Answering the wrong question about the
+  // wrong party is the failure this whole boundary has been fixing, and the
+  // route's tests could not see it because they set the key.
+  //
   // A malformed body throws out of request.json(), which without this would
   // surface as an unhandled 500 carrying a stack trace. It is a bad request,
   // and it says so.
@@ -32,8 +34,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "no pages to extract from" }, { status: 400 });
   }
 
-  // The key is read from the environment above and never touches the
-  // response below — createOpenAIClient only holds it in closure.
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return Response.json({ error: "OPENAI_API_KEY is not configured" }, { status: 500 });
+  }
+
+  // The key never touches the response below — createOpenAIClient only holds
+  // it in closure.
   //
   // The wrapper exists so the catch below can tell the two failure kinds
   // apart. It used to wrap all of extract() while claiming "the model call is

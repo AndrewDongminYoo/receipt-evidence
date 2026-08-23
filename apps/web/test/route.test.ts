@@ -12,9 +12,11 @@ import test from "node:test";
 import { POST } from "../app/api/extract/route.ts";
 import { extractionReferenceDate, isRequestBody } from "../src/request.ts";
 
-// route.ts reads the key inside POST, not at import time, so setting it here
-// is enough.
-process.env.OPENAI_API_KEY = "test-key-never-sent";
+// route.ts reads the key inside POST, not at import time. It is deliberately
+// left UNSET for the malformed-request cases below: with it set, the tests
+// could not see that the key check used to run first and answered every bad
+// request with "OPENAI_API_KEY is not configured".
+delete process.env.OPENAI_API_KEY;
 
 function post(body: string): Request {
   return new Request("http://localhost/api/extract", {
