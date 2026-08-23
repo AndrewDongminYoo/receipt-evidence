@@ -12,12 +12,21 @@ interface RequestBody {
 // through, and they died inside the parser instead — a 502 whose body read
 // "Cannot read properties of undefined (reading 'split')". That is a bad
 // request, and the caller is entitled to hear which part of it was bad.
+const IMAGE_DATA_URL = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/i;
+
+function isImageDataUrl(value: unknown): boolean {
+  return typeof value === "string" && IMAGE_DATA_URL.test(value);
+}
+
 export function isPage(value: unknown): value is Page {
   if (typeof value !== "object" || value === null) return false;
   const { text, lines, imageDataUrl } = value as { text?: unknown; lines?: unknown; imageDataUrl?: unknown };
   if (typeof text !== "string") return false;
   if (!Array.isArray(lines)) return false;
-  if (imageDataUrl !== undefined && typeof imageDataUrl !== "string") return false;
+  // A base64 image data URL, not any string. This value is forwarded verbatim
+  // into the model request's `image_url`, so an arbitrary string here would
+  // let a caller aim that field at a URL of their choosing.
+  if (imageDataUrl !== undefined && !isImageDataUrl(imageDataUrl)) return false;
   return lines.every((line) => {
     if (typeof line !== "object" || line === null) return false;
     const { text: lineText, frame } = line as { text?: unknown; frame?: unknown };

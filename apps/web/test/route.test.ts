@@ -55,10 +55,18 @@ test("isRequestBody rejects a page shape that would crash the parser", () => {
     false,
     "a frame missing a dimension",
   );
+  assert.equal(isRequestBody({ pages: [{ ...VALID_PAGE, imageDataUrl: 42 }] }), false, "an image that is not a string");
+  // The value is forwarded verbatim into the model request's `image_url`, so
+  // an arbitrary string would let a caller aim that field wherever they liked.
   assert.equal(
-    isRequestBody({ pages: [{ ...VALID_PAGE, imageDataUrl: 42 }] }),
+    isRequestBody({ pages: [{ ...VALID_PAGE, imageDataUrl: "https://example.com/pixel.png" }] }),
     false,
-    "an image that is not a data URL string",
+    "a remote URL is not an inline image",
+  );
+  assert.equal(
+    isRequestBody({ pages: [{ ...VALID_PAGE, imageDataUrl: "data:text/html;base64,PHNjcmlwdD4=" }] }),
+    false,
+    "a data URL that is not an image",
   );
 });
 

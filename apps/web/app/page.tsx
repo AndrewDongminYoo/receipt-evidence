@@ -167,11 +167,15 @@ export default function Page() {
 
   async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (!file) {
-      setImage(null);
-      setSendImage(false);
-      return;
-    }
+    // Everything tied to the OLD image goes first, before the async decode:
+    // the consent, the image itself, and the result whose boxes were computed
+    // against it. Resetting only on the clear and error paths left two holes —
+    // a checkbox ticked for photo A authorised photo B, and a result rendered
+    // for A repainted its boxes onto B's pixels while decoding.
+    setImage(null);
+    setSendImage(false);
+    setResult(null);
+    if (!file) return;
     // Both helpers reject — an unreadable file, an undecodable image (a HEIC
     // on a browser without support, a truncated download). Uncaught, the
     // rejection was silent and `image` kept its previous value, so the next
@@ -182,8 +186,6 @@ export default function Page() {
       setImage({ dataUrl, naturalWidth: width, naturalHeight: height });
       setError(null);
     } catch (err) {
-      setImage(null);
-      setSendImage(false);
       setError(`could not read that image: ${err instanceof Error ? err.message : String(err)}`);
     }
   }

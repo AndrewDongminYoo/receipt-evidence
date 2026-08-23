@@ -34,18 +34,40 @@ export async function POST(request: Request): Promise<Response> {
 
   // The key is read from the environment above and never touches the
   // response below — createOpenAIClient only holds it in closure.
+  //
+  // The wrapper exists so the catch below can tell the two failure kinds
+  // apart. It used to wrap all of extract() while claiming "the model call is
+  // the one thing here that can fail for reasons outside this process", so a
+  // bug in the parser or the guards was reported to the caller as a 502 model
+  // failure carrying a raw JS message — the same misdiagnosis the request
+  // validator was written to eliminate.
+  let modelFailed = false;
   const client = createOpenAIClient(apiKey);
+  const guarded = {
+    async complete(input: Parameters<typeof client.complete>[0]) {
+      try {
+        return await client.complete(input);
+      } catch (error) {
+        modelFailed = true;
+        throw error;
+      }
+    },
+  };
   try {
       // Padded by a day — see extractionReferenceDate for why.
     const referenceDate = extractionReferenceDate(new Date());
-    const result = await extract({ pages: body.pages }, client, referenceDate);
+    const result = await extract({ pages: body.pages }, guarded, referenceDate);
     return Response.json(result);
   } catch (error) {
-    // The model call is the one thing here that can fail for reasons outside
-    // this process — a timeout, a rejected key, a rate limit. Report the
-    // message, not the stack, and never the request body: a receipt's
-    // contents must not travel back out through an error string.
-    const message = error instanceof Error ? error.message : "extraction failed";
-    return Response.json({ error: message }, { status: 502 });
+    // Report the message, not the stack, and never the request body: a
+    // receipt's contents must not travel back out through an error string.
+    // A model failure is upstream (a timeout, a rejected key, a rate limit)
+    // and says so; anything else is this service's own bug and must not be
+    // dressed up as one.
+    if (modelFailed) {
+      const message = error instanceof Error ? error.message : "the model call failed";
+      return Response.json({ error: message }, { status: 502 });
+    }
+    return Response.json({ error: "extraction failed" }, { status: 500 });
   }
 }
