@@ -1,4 +1,4 @@
-import { normalize } from "./normalize.ts";
+import { findLineRuns, normalize } from "./normalize.ts";
 import { amountsOnLine } from "./amounts.ts";
 
 // Two independent questions, and neither implies the other, so a caller must
@@ -89,26 +89,29 @@ export function excerptContainsText(excerpt: string, value: string): boolean {
 }
 
 /**
- * Does the excerpt occur verbatim (NFKC-normalised, whitespace-collapsed) within
- * a single line of the page text?
+ * Does the excerpt occur within one contiguous run of the page's lines?
  *
- * Matching is per-line, not across the whole page: evidence in this system IS a
- * line (OcrEvidence is one line), and Task 12's anchoring maps an excerpt back to
- * a single entry of the scanner's ocrLines[] to draw a box on the image. An
- * excerpt spanning two lines could never be anchored, so a cross-line match would
- * produce a value that verifies but cannot be shown to the reader — the guard and
- * the anchor have to agree about what a quote is. Whitespace is still collapsed
- * *within* each line, because OCR spacing wobbles there and that tolerance is
- * wanted.
+ * Matching is per-line rather than over the whole page because evidence has
+ * to be showable: `anchorToLines` maps the same excerpt back to the scanner's
+ * geometry to draw a box, and an excerpt stitched from unrelated parts of a
+ * receipt could not be boxed at all. Both call `findLineRuns`, so what counts
+ * as a quote is defined once.
+ *
+ * A run may span up to `MAX_EVIDENCE_LINES` ADJACENT lines. It was exactly
+ * one until the first device capture showed a Korean receipt printing an
+ * item's name, barcode and price on three lines — the model quoted all three
+ * and a correct reading was rejected. Adjacency is what keeps that honest: a
+ * label from the top of the receipt still cannot be joined to an amount from
+ * the bottom.
+ *
+ * Whitespace is collapsed within each line, because OCR spacing wobbles there
+ * and that tolerance is wanted.
  */
 export function verifyEvidence(excerpt: string, pageText: string): boolean {
-  const normalizedExcerpt = normalize(excerpt);
-  // An empty (or whitespace-only) excerpt is not evidence of anything, and every
-  // string contains the empty string — without this check the guard fails open
-  // for the most ordinary hallucination, a model returning "". A guard's default
-  // answer must be "no".
-  if (normalizedExcerpt === "") return false;
-  return normalize(pageText)
-    .split("\n")
-    .some((line) => line.includes(normalizedExcerpt));
+  // An empty (or whitespace-only) excerpt is not evidence of anything, and
+  // every string contains the empty string — without this the guard fails
+  // open for the most ordinary hallucination, a model returning "". The check
+  // lives inside findLineRuns, which returns no runs for it; asserting it here
+  // too would be a second definition of the same rule.
+  return findLineRuns(excerpt, pageText.split("\n")).length > 0;
 }

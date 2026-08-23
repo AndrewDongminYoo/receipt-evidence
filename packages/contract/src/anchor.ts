@@ -1,29 +1,43 @@
-import { normalize } from "./normalize.ts";
+import { findLineRuns } from "./normalize.ts";
 
 export interface OcrLine {
   text: string;
   frame: { x: number; y: number; width: number; height: number };
 }
 
-export function anchorToLines(
-  excerpt: string,
-  lines: readonly OcrLine[],
-): OcrLine["frame"] | null {
-  const normalizedExcerpt = normalize(excerpt);
-  // An empty (or whitespace-only) excerpt is not evidence of anything, matching
-  // the behavior of verifyEvidence in guards.ts. Without this check, the function
-  // fails open for the most ordinary hallucination, a model returning "".
-  if (normalizedExcerpt === "") return null;
+/**
+ * The box to draw over the lines an excerpt was read from, or `null` when
+ * there is no single answer.
+ *
+ * Shares `findLineRuns` with `verifyEvidence` so the two cannot disagree
+ * about what a quote is — a value that verified but could not be anchored
+ * would be unshowable.
+ *
+ * Two things fail closed. An excerpt matching more than one run is not boxed:
+ * a receipt that repeats a row (`SUBTOTAL / TAX / TOTAL / VISA` over `5.50 /
+ * 0.53 / 6.03 / 6.03`) would otherwise put the VISA row's evidence on the
+ * TOTAL row — right value, wrong pixels, no signal, which is worse than no
+ * box in a system whose claim is that a value is shown beside the pixels it
+ * was read from. And an empty excerpt matches nothing, for the same reason
+ * the guard rejects it.
+ */
+export function anchorToLines(excerpt: string, lines: readonly OcrLine[]): OcrLine["frame"] | null {
+  const runs = findLineRuns(
+    excerpt,
+    lines.map((line) => line.text),
+  );
+  if (runs.length !== 1) return null;
+  const run = runs[0] as { start: number; length: number };
+  const frames = lines.slice(run.start, run.start + run.length).map((line) => line.frame);
+  return frames.length === 0 ? null : enclosing(frames);
+}
 
-  // Ambiguity fails closed, the same way an empty excerpt does. Returning the
-  // FIRST match put the box on the wrong row of the image whenever a receipt
-  // repeats a line — `SUBTOTAL / TAX / TOTAL / VISA` over `5.50 / 0.53 / 6.03
-  // / 6.03` is a shape total.ts documents, and a model quoting the VISA row's
-  // `6.03` verified correctly and got a box drawn on the TOTAL row. Right
-  // value, wrong pixels, and no signal that anything was wrong — worse than
-  // no box at all in a system whose claim is that a value is shown beside the
-  // pixels it was read from. `null` is an already-supported state: the value
-  // still verifies and still ships, it just is not boxed.
-  const matches = lines.filter((line) => normalize(line.text).includes(normalizedExcerpt));
-  return matches.length === 1 ? (matches[0] as OcrLine).frame : null;
+/** The smallest box containing every line the excerpt spanned. A single-line
+ * run returns that line's own frame unchanged. */
+function enclosing(frames: readonly OcrLine["frame"][]): OcrLine["frame"] {
+  const left = Math.min(...frames.map((frame) => frame.x));
+  const top = Math.min(...frames.map((frame) => frame.y));
+  const right = Math.max(...frames.map((frame) => frame.x + frame.width));
+  const bottom = Math.max(...frames.map((frame) => frame.y + frame.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }

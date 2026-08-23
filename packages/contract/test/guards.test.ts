@@ -68,10 +68,37 @@ test("verifyEvidence rejects an empty or whitespace-only excerpt", () => {
   assert.equal(verifyEvidence("　", page), false); // ideographic space, NFKC-normalises to a space
 });
 
-test("verifyEvidence rejects an excerpt spliced from two lines", () => {
+test("verifyEvidence rejects an excerpt spliced from lines that are not adjacent", () => {
+  // This used to assert that ANY two-line excerpt was rejected. Evidence may
+  // now span up to MAX_EVIDENCE_LINES adjacent lines, because a Korean
+  // receipt prints an item's name and its price on separate lines — so the
+  // fixture was re-aimed at what the rule still has to stop rather than
+  // weakened to match the code. Adjacency is the constraint: a label from the
+  // top of the receipt cannot be joined to an amount from the bottom.
   const page = "아메리카노 1개\n합계\n소계 4500\n부가세 450\n";
 
-  assert.equal(verifyEvidence("합계\n소계 4500", page), false);
+  assert.equal(verifyEvidence("아메리카노 1개\n부가세 450", page), false, "first line spliced onto the last");
+  assert.equal(verifyEvidence("합계\n부가세 450", page), false, "one line skipped in between");
+  assert.equal(verifyEvidence("합계\n소계 4500", page), true, "consecutive, so a real quote");
+});
+
+test("verifyEvidence accepts an item split across the lines its receipt printed it on", () => {
+  // The capture that forced this: a 7-Eleven receipt whose OCR put the item
+  // name, its barcode and its price on three lines. The model quoted all
+  // three — a correct reading — and the one-line rule rejected it.
+  const page = "7-ELEVEN\n하리보)푸르티부시젤리100\n4001686375754\n2,500\n합 계 #2,500\n";
+
+  assert.equal(verifyEvidence("하리보)푸르티부시젤리100\n4001686375754\n2,500", page), true);
+});
+
+test("verifyEvidence refuses a run longer than the cap, so a page cannot be quoted whole", () => {
+  // Without a cap the relaxation would undo the guard: quote everything and
+  // every value in it verifies, which is the empty-excerpt failure in a
+  // longer coat.
+  const page = "GS25\n2026-07-02\n커피 4,500\n합계 4,500\n";
+
+  assert.equal(verifyEvidence("GS25\n2026-07-02\n커피 4,500", page), true, "three lines is the cap");
+  assert.equal(verifyEvidence("GS25\n2026-07-02\n커피 4,500\n합계 4,500", page), false, "four is past it");
 });
 
 test("a real excerpt carrying a value it never states is rejected", () => {

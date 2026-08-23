@@ -53,7 +53,8 @@ Its tests need no network and no device.
 4. **Model pass (server).** The model is asked only for what the parser did not derive — always the line items, plus whichever header fields came back empty.
    The JSON schema makes `evidence: { pageIndex, excerpt }` required on every value; a response without it is invalid, not merely suspect.
 5. **Verification (server, deterministic).**
-   - The excerpt must occur in that page's OCR text, compared after NFKC normalisation.
+   - The excerpt must occur in that page's OCR text, compared after NFKC normalisation, within a run of at most three ADJACENT lines.
+     One line was the original rule, and the first device capture broke it: a Korean receipt prints an item's name, barcode and price on separate lines, so a correct model reading was rejected for quoting all three. The cap and the adjacency requirement are what keep the relaxation from letting a model quote the page whole.
    - The value must occur inside the excerpt, and how that is asked depends on the value's type: an amount against the line's amounts read the parser's own way (`excerptContainsAmount`), a string as a normalised substring (`excerptContainsText`), a date by re-parsing the cited line and comparing the calendar day.
      This was originally specified as one ported rule, `excerptContainsValue` from catfood-feeder. That port was removed on 2026-08-22 (see `packages/contract/src/guards.ts` for the two measured failures): it compared minor units against the printed decimal, so every honest USD amount failed, and it demanded exactly one numeric token, which no ordinary receipt row satisfies.
      Strings and dates, meanwhile, had never been checked at all — a fabricated merchant quoting any real line was published as `verified: true`.

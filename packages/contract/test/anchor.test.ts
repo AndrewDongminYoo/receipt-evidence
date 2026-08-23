@@ -37,3 +37,24 @@ test("an excerpt matching more than one line is not boxed at all", () => {
     "an unambiguous excerpt is still boxed",
   );
 });
+
+test("a multi-line excerpt is boxed by the rectangle enclosing every line it spans", () => {
+  // The Korean item shape: name, barcode and price on three lines. The box has
+  // to cover all three, or the reader is pointed at part of the evidence.
+  const lines = [
+    { text: "하리보)푸르티부시젤리100", frame: { x: 20, y: 100, width: 300, height: 20 } },
+    { text: "4001686375754", frame: { x: 10, y: 130, width: 200, height: 20 } },
+    { text: "2,500", frame: { x: 240, y: 130, width: 80, height: 24 } },
+  ];
+
+  assert.deepEqual(
+    anchorToLines("하리보)푸르티부시젤리100\n4001686375754\n2,500", lines),
+    { x: 10, y: 100, width: 310, height: 54 },
+    "left-most edge, top-most edge, and out to the furthest right and bottom",
+  );
+  assert.deepEqual(
+    anchorToLines("4001686375754", lines),
+    { x: 10, y: 130, width: 200, height: 20 },
+    "a single-line excerpt still gets that line's own frame, unchanged",
+  );
+});
