@@ -10,6 +10,24 @@ test("the API host follows the dev server the app is already talking to", () => 
   assert.equal(apiBaseUrl(undefined, "172.30.1.11:8081"), "http://172.30.1.11:3000");
   assert.equal(apiBaseUrl(undefined, "exp://172.30.1.11:8081"), "http://172.30.1.11:3000");
   assert.equal(apiBaseUrl(undefined, "172.30.1.11:8081/_expo/loading"), "http://172.30.1.11:3000");
+  // The shape that actually reaches it: SourceCode.scriptURL, the bundle URL
+  // the app booted from. Taken verbatim from this project's dev server.
+  assert.equal(
+    apiBaseUrl(
+      undefined,
+      "http://172.30.1.11:8081/apps/mobile/index.bundle?platform=ios&dev=true&hot=false&transform.engine=hermes",
+    ),
+    "http://172.30.1.11:3000",
+  );
+});
+
+test("a release build's embedded bundle yields no host, so nothing is derived from it", () => {
+  // scriptURL is a file:// path when the bundle ships inside the app. It must
+  // not be mistaken for a dev server, and it must not produce a bogus host.
+  assert.equal(
+    apiBaseUrl(undefined, "file:///var/containers/Bundle/Application/ABC/ReceiptEvidence.app/main.jsbundle"),
+    "http://localhost:3000",
+  );
 });
 
 test("an explicit EXPO_PUBLIC_API_URL wins over the derived host", () => {

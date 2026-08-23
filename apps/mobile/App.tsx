@@ -2,8 +2,7 @@
 // per page whether its text can travel alone, post one request, and show
 // every extracted value beside the pixels it was read from.
 import { useState } from "react";
-import { ActivityIndicator, Button, Image, ScrollView, StyleSheet, Text, View } from "react-native";
-import Constants from "expo-constants";
+import { ActivityIndicator, Button, Image, NativeModules, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { File } from "expo-file-system";
 import { scan, DEFAULT_OCR_FLOOR } from "react-native-receipt-scanner";
@@ -16,7 +15,13 @@ import { EvidenceOverlay } from "./src/EvidenceOverlay.tsx";
 // Derived from the dev server this bundle came from, so it points at the
 // machine running `pnpm --filter web dev` without being configured. See
 // src/api.ts for why the env var alone was not enough.
-const API_URL = apiBaseUrl(process.env.EXPO_PUBLIC_API_URL, Constants.expoConfig?.hostUri);
+// `SourceCode.scriptURL` is where this bundle was loaded from — the one host
+// the running app has already proved it can reach. See src/api.ts for why
+// Constants.expoConfig.hostUri, the obvious choice, is empty in this app.
+const scriptUrl = (NativeModules["SourceCode"] as { getConstants?: () => { scriptURL?: string } } | undefined)
+  ?.getConstants?.()
+  ?.scriptURL;
+const API_URL = apiBaseUrl(process.env.EXPO_PUBLIC_API_URL, scriptUrl);
 
 /** The page whose photo the result view shows. Every other page's values are
  * still listed — only their boxes have nowhere to be drawn. */
