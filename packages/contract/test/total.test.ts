@@ -49,3 +49,22 @@ test("selectTotal pairs stacked labels with their column-aligned values", () => 
 
   assert.equal(selectTotal(lines, "USD")?.text, "6.03");
 });
+
+test("selectTotal reads a Korean label whose characters are letter-spaced", () => {
+  // From the first real device capture, a 7-Eleven receipt: the printer spaces
+  // its labels, so OCR returns `합 계` and `부 가 세`. Against the tight-only
+  // pattern the label missed, selectTotal fell through to its largest-amount
+  // fallback, and the product BARCODE shipped as the paid total — verified,
+  // with a box drawn over it on the photo.
+  const lines = evidenceLines("하리보)푸르티부시젤리100\n4001686375754  1  2,500\n부 가 세  227\n합 계  #2,500\n");
+
+  assert.equal(selectTotal(lines, "KRW")?.text, "합 계  #2,500");
+  assert.notEqual(selectTotal(lines, "KRW")?.text, "4001686375754  1  2,500", "never the barcode row");
+});
+
+test("a letter-spaced VAT row is still excluded from the total", () => {
+  // The other half: if `부 가 세` also missed, the tax row became a candidate.
+  const lines = evidenceLines("커피 4,500\n부 가 세  409\n");
+
+  assert.equal(selectTotal(lines, "KRW"), null, "a receipt with only a tax row has no total");
+});

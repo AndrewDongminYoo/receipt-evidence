@@ -11,13 +11,26 @@ import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts
 // Exported: currency.ts (Task 6) ports `_splitLabelCurrency`, which tests
 // this same label against the rows above a split total. Dart holds one copy
 // as a static field; two TS copies would be the thing that diverges.
-export const TOTAL_LABEL = /(^|\s)(total|grand total|결제금액|합계)(\s|:|$)/i;
+// Korean receipt printers letter-space their labels — the device pass on a
+// 7-Eleven receipt printed `합 계`, not `합계`, and `부 가 세` beside it. A
+// label that misses is not a near-miss: `selectTotal` falls through to its
+// largest-amount fallback, which on that receipt published the product
+// BARCODE `4001686375754` as the paid total, verified, with a box drawn over
+// it. The 12-receipt corpus never showed this because its Korean fixtures
+// happen to print theirs tight.
+//
+// A deliberate deviation from the Dart source, which has the same patterns:
+// this system's contract is that a value ships with evidence a reader can
+// check, and a barcode presented as a total is exactly what that exists to
+// prevent. Latin labels are left alone — OCR does not letter-space them.
+export const TOTAL_LABEL = /(^|\s)(total|grand total|결\s*제\s*금\s*액|합\s*계)(\s|:|$)/i;
 // A row naming a different money figure is never the paid total. The English
 // labels match as whole words, so `TAXI FARE $12.99` is a fare rather than a
 // tax row; the Korean ones match anywhere, because `할인금액` is one word.
 // Exported: currency.ts reuses this to exclude a fare/tax row from marker
 // detection, same reuse reason as TOTAL_LABEL above.
-export const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\b|소계|할인|세금|부가세/i;
+// Letter-spacing tolerated for the same reason as TOTAL_LABEL above.
+export const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\b|소\s*계|할\s*인|세\s*금|부\s*가\s*세/i;
 // A row naming a count is the paid total only when it also carries money:
 // `TOTAL 2 ITEMS $24.95` is a total, `TOTAL NUMBER OF ITEMS SOLD - 10` is a tally.
 const COUNT_LABEL = /\b(count|number|items?|sold|qty|quantity)\b|수량|개수/i;

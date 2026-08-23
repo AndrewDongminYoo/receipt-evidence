@@ -34,7 +34,8 @@ export interface ParsedReceipt {
 // of this same label (amounts.ts's own copy is likewise unexported). Not
 // currency.ts: Dart's `_currencyFrom` never consults `_referenceLabel`, so
 // currency.ts has no copy of this pattern.
-const REFERENCE_LABEL = /(order|reference|주문번호|승인번호)/i;
+// Letter-spacing tolerated — see TOTAL_LABEL in total.ts.
+const REFERENCE_LABEL = /(order|reference|주\s*문\s*번\s*호|승\s*인\s*번\s*호)/i;
 // receipt_analyzer.dart:519. Case-sensitive in Dart (no `caseSensitive:
 // false`), so this stays without an `i` flag: a reference token is
 // upper-cased digits/letters/hyphens, at least 4 chars, at the end of the
