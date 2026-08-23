@@ -58,7 +58,7 @@ Nine defects on this project were tests or gates that passed while proving nothi
 
 ## Current state
 
-Every task in the plan is implemented: the parser and its corpus gate, the guards, arithmetic, anchoring, the schema, `/api/extract`, the demo page, the image fallback, the Expo app, and the README and CI. 87 tests pass and both typechecks exit 0.
+Every task in the plan is implemented: the parser and its corpus gate, the guards, arithmetic, anchoring, the schema, `/api/extract`, the demo page, the image fallback, the Expo app, and the README and CI. The suite and both typechecks pass; `pnpm test` reports the count, and no document restates it.
 
 **One step is outstanding and it needs a human: Task 16 Step 4, the device pass.** The app has never been run — no `expo prebuild`, no native build, no camera or gallery capture on a real phone. It installs on the operator's daily iPhone, so it is theirs to authorise.
 

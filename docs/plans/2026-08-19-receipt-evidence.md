@@ -1173,7 +1173,7 @@ git commit -m "feat(contract): ✨ define the model reply schema once, in zod"
 - Create: `apps/web/test/extract.test.ts`, `docs/notes/model-identifier.md`
 
 **Interfaces:**
-- Consumes: `analyze`, `verifyEvidence`, `excerptContainsValue`, `checkArithmetic`, `anchorToLines`, `ModelReplySchema`.
+- Consumes: `analyze`, `verifyEvidence`, `excerptContainsAmount`, `excerptContainsText`, `checkArithmetic`, `anchorToLines`, `ModelReplySchema`.
 - Produces: `POST /api/extract` taking `{ pages: [{ text, lines, imageBase64? }] }` and returning the `ExtractionResponse` from the spec. `ModelClient` is an interface with one method, so tests substitute a fake and never call OpenAI.
 
 - [ ] **Step 1: Record the model identifier from official documentation**

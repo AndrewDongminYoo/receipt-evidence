@@ -10,7 +10,7 @@
   --unverified-bg: #fbe9ea;
   --parser: #0969da;
   --model: #8250df;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -154,7 +154,11 @@ button:disabled {
   position: absolute;
   border: 2px solid var(--verified);
   background: color-mix(in srgb, var(--verified) 15%, transparent);
-  pointer-events: none;
+  /* No `pointer-events: none`. The box carries a `title` naming which value
+     it belongs to, and with several overlapping on one receipt that tooltip
+     is the only way to tell them apart — suppressing pointer events meant it
+     could never be shown. Nothing beneath a box is interactive: the only
+     element under it is a plain `<img>`. */
 }
 
 .box-unverified {

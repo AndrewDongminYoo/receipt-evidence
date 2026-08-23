@@ -21,7 +21,7 @@ Re-derive this table any time with `node scripts/measure-corpus.mjs`; the long f
 
 Two readings, and the second one is the point.
 
-Currency and date are solved: a model asked for them would be a cost with no upside, so the pipeline never asks.
+Currency is solved outright — it is not in the model's schema at all. The date nearly is: when the parser reads one, the request tells the model so and its answer would be discarded anyway, so it is asked only for the one receipt in twelve where the parser finds none.
 Line items are where the parser has nothing — and worse, on 3 receipts it _invents_ one, reading a barcode fragment like `HE500* 100` as an item named `HE500*` priced at 100.
 Merchant and paid total look complete and are wrong 5 times each, returning a garbled brand mark, or a barcode run picked up by the largest-amount fallback.
 

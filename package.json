@@ -7,8 +7,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.base.json && pnpm --filter @receipt-evidence/mobile typecheck"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
-    "typescript": "^6.0.3"
+    "@types/node": "26.2.0",
+    "typescript": "6.0.3"
   },
   "packageManager": "pnpm@11.22.0"
 }

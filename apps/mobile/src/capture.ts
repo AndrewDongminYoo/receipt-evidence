@@ -33,6 +33,16 @@ export function clearsFloor(quality: OcrQuality | undefined, floor: Required<Ocr
   // ("the gate never penalizes a missing field" — OcrFloor.minConfidence in
   // react-native-receipt-scanner's types.ts), and this mirrors it rather
   // than inventing a stricter rule the package would not apply.
+  //
+  // With DEFAULT_OCR_FLOOR, which is what App.tsx passes, `minConfidence` is
+  // 0 — so no confidence in [0, 1] can fall below it and this branch never
+  // rejects in production. The shipped gate is 12 characters and 2 lines, and
+  // a 13-character garbled read at confidence 0.1 clears it, so the image
+  // stays on the device and the model gets only the garbage text. The branch
+  // is kept and tested at a raised floor because the threshold is a caller's
+  // to set, and because the package itself calls confidence "reporting-only —
+  // not a cross-platform enforcement signal until its distributions are
+  // validated comparable", which is not this project's call to overrule.
   if (quality.confidence !== undefined && quality.confidence < floor.minConfidence) return false;
   return true;
 }
