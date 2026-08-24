@@ -8,7 +8,7 @@ import type { OcrEvidence } from "./evidence.ts";
 // on this shared instance — either one advances its lastIndex, and the next
 // caller resumes mid-string instead of matching from the start.
 export const DATE_PATTERN_G =
-  /(20\d{2})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})일?|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](20\d{2})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/g;
+  /(?<!\d)(20\d{2})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})(?:(?=일(?!\d))일|(?!(?:\d|일)))|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](20\d{2})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/g;
 const EXPIRY_LABEL = /(expir|\bexp\b|유효기간)/i;
 
 /** Rejects a date the calendar does not have — 2026-02-31 round-trips wrong. */

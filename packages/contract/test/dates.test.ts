@@ -5,6 +5,7 @@ import { parseDate, selectDate } from "../src/dates.ts";
 
 test("parseDate reads Korean, dotted, and slashed forms", () => {
   assert.deepEqual(parseDate("2026년 7월 1일"), new Date(2026, 6, 1));
+  assert.deepEqual(parseDate("2026년 7월 1"), new Date(2026, 6, 1));
   assert.deepEqual(parseDate("2026.07.29 18:42"), new Date(2026, 6, 29));
   assert.deepEqual(parseDate("07/29/2026"), new Date(2026, 6, 29));
 });
@@ -33,4 +34,10 @@ test("selectDate skips a four-digit identifier that is not a receipt year", () =
   const lines = evidenceLines("현금영수증 발행번호 0126-1-1\n2026/08/12 (수) 17:47:31\n");
 
   assert.equal(selectDate(lines, reference)?.text, "2026/08/12 (수) 17:47:31");
+});
+
+test("parseDate rejects a four-digit date embedded in an identifier", () => {
+  assert.equal(parseDate("12026-08-12"), null);
+  assert.equal(parseDate("2026-08-123"), null);
+  assert.equal(parseDate("2026년 8월 12일3"), null);
 });
