@@ -51,7 +51,7 @@ test("a fabricated model item survives as unverified, never as fact", async () =
   assert.equal(result.arithmetic.agrees, false);
 });
 
-test("a gift certificate reconciles the item sum with the card payment", async () => {
+test("an explicit Korean total takes precedence over settlement contributions", async () => {
   const page = {
     text:
       "GS25\n말차마카다쿠키 2,400\n행운한입쑥찰떡 4,000\n5개) 아카페 2,900\n합계 9,300\n상품권결제금액: 5,000\n신용카드 결제금액: 4,300원\n",
@@ -73,8 +73,8 @@ test("a gift certificate reconciles the item sum with the card payment", async (
 
   assert.deepEqual(result.arithmetic, {
     itemSumMinor: 9300,
-    claimedTotalMinor: 4300,
-    reconciledTenderMinor: 5000,
+    claimedTotalMinor: 9300,
+    reconciledTenderMinor: null,
     agrees: true,
   });
 });

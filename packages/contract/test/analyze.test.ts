@@ -32,6 +32,13 @@ test("analyze quotes evidence that re-parses to the same value", () => {
   assert.deepEqual(parsed.purchaseDate?.value, new Date(2026, 6, 2));
 });
 
+test("analyze retains a Korean card payment amount before its approval number", () => {
+  const parsed = analyze("상품 9,300\n신용카드 결제금액: 4,300원 승인번호: 1234\n", REFERENCE);
+
+  assert.equal(parsed.paidTotal?.value, 4300);
+  assert.equal(parsed.paidTotal?.evidence.text, "신용카드 결제금액: 4,300원 승인번호: 1234");
+});
+
 test("analyze skips an amount line when looking for the merchant", () => {
   const parsed = analyze("13,000\nGS25\n2026-07-02\n합계 13,000\n", new Date(2026, 6, 20));
 
