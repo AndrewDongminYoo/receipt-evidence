@@ -23,15 +23,11 @@ const scriptUrl = (NativeModules["SourceCode"] as { getConstants?: () => { scrip
   ?.scriptURL;
 const API_URL = apiBaseUrl(process.env.EXPO_PUBLIC_API_URL, scriptUrl);
 
-/** The page whose photo the result view shows. Every other page's values are
- * still listed — only their boxes have nowhere to be drawn. */
-const PRIMARY_PAGE = 0;
-
 type Status =
   | { kind: "idle" }
   | { kind: "working"; step: string }
   | { kind: "failed"; message: string }
-  | { kind: "done"; image: ReceiptImage; result: ExtractionResponse };
+  | { kind: "done"; images: readonly ReceiptImage[]; result: ExtractionResponse };
 
 /** Turns one capture into a request page. Text always; the JPEG only when
  * the text cannot carry the work — that decision, not the upload, is what
@@ -49,10 +45,11 @@ async function toPage(image: ReceiptImage): Promise<Page> {
 /** Boxes for ONE page, in that page's own pixel space.
  *
  * The pageIndex filter is not optional: a scan may carry up to three pages,
- * each anchored against its own OCR geometry, and the view shows one photo.
- * Without it a box computed on page 1 was painted on page 0's image, pointing
- * the reader at unrelated text — the worst failure available to an app whose
- * claim is that a value is shown beside the pixels it was read from. */
+ * each anchored against its own OCR geometry, and every photo may carry only
+ * its own page's boxes. Without it a box computed on page 1 was painted on
+ * page 0's image, pointing the reader at unrelated text — the worst failure
+ * available to an app whose claim is that a value is shown beside the pixels
+ * it was read from. */
 function boxesOf(result: ExtractionResponse, pageIndex: number, wanted: boolean): Frame[] {
   const entries: { evidence: EvidenceRef; verified: boolean }[] = [
     ...Object.values(result.fields)
@@ -104,8 +101,7 @@ export default function App() {
         ocrFloor: false,
       });
       if (scanned.status === "cancelled") return setStatus({ kind: "idle" });
-      const [primary] = scanned.images;
-      if (primary === undefined) {
+      if (scanned.images.length === 0) {
         return setStatus({ kind: "failed", message: "the scanner returned no page" });
       }
 
@@ -135,7 +131,7 @@ export default function App() {
             : response.statusText;
         return setStatus({ kind: "failed", message });
       }
-      setStatus({ kind: "done", image: primary, result: body as ExtractionResponse });
+      setStatus({ kind: "done", images: scanned.images, result: body as ExtractionResponse });
     } catch (error) {
       setStatus({ kind: "failed", message: error instanceof Error ? error.message : String(error) });
     }
@@ -168,25 +164,32 @@ export default function App() {
           <Text style={styles.muted}>posting to {API_URL}/api/extract</Text>
         </View>
       )}
-      {status.kind === "done" && <Result image={status.image} result={status.result} />}
+      {status.kind === "done" && <Result images={status.images} result={status.result} />}
     </ScrollView>
   );
 }
 
-function Result({ image, result }: { image: ReceiptImage; result: ExtractionResponse }) {
+function Result({ images, result }: { images: readonly ReceiptImage[]; result: ExtractionResponse }) {
   const { fields, items, tenders, arithmetic, unverified, disagreements, modelReply } = result;
   return (
     <View style={styles.result}>
-      {image.ocrLines === undefined ? (
-        <Image source={{ uri: image.uri }} style={styles.plainImage} resizeMode="contain" />
-      ) : (
-        // `image` is scanned.images[0], so only page 0's boxes belong on it.
-        <EvidenceOverlay
-          image={image}
-          boxes={boxesOf(result, PRIMARY_PAGE, true)}
-          unverifiedBoxes={boxesOf(result, PRIMARY_PAGE, false)}
-        />
-      )}
+      {/* One photo per captured page, each carrying only ITS page's boxes
+          (issue #2) — request pages were built from this same array in this
+          same order, so the array index IS the evidence pageIndex. */}
+      {images.map((image, pageIndex) => (
+        <View key={pageIndex} style={styles.entry}>
+          {images.length > 1 && <Text style={styles.muted}>Page {pageIndex + 1}</Text>}
+          {image.ocrLines === undefined ? (
+            <Image source={{ uri: image.uri }} style={styles.plainImage} resizeMode="contain" />
+          ) : (
+            <EvidenceOverlay
+              image={image}
+              boxes={boxesOf(result, pageIndex, true)}
+              unverifiedBoxes={boxesOf(result, pageIndex, false)}
+            />
+          )}
+        </View>
+      ))}
 
       <FieldRow label="Merchant" field={fields.merchant} />
       <FieldRow label="Date" field={fields.purchaseDate} />

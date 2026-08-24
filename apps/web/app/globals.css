@@ -91,6 +91,37 @@ label.checkbox input {
   flex: none;
 }
 
+/* One bordered block per scan page, numbered like the results ("page 0"). */
+fieldset.page-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+fieldset.page-input legend {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+button.remove-page {
+  padding: 0.1rem 0.6rem;
+  background: var(--unverified);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
 textarea,
 input[type="file"] {
   font-family: var(--font-mono);
