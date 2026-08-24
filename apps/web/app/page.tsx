@@ -227,6 +227,13 @@ export default function Page() {
   // readable by an async continuation that started before the newer selection
   // existed, and bumping it must not re-render.
   const selectionCounters = useRef(new Map<number, number>());
+  // Which page STRUCTURE an in-flight extraction was posted against. Clearing
+  // `result` on removal is not enough: a request already running completes
+  // afterwards and `setResult` restores a response whose page indices use the
+  // OLD numbering — boxes then land on the wrong photos. Bumped by anything
+  // that renumbers or re-images pages; a response is dropped when its
+  // captured revision is no longer current.
+  const requestRevision = useRef(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractionResponse | null>(null);
@@ -246,28 +253,33 @@ export default function Page() {
   function removePage(id: number) {
     // Removing a page renumbers every page after it, and the result's boxes
     // and `page N` references were computed against the OLD numbering — a
-    // stale result would paint them on the wrong photos.
+    // stale result would paint them on the wrong photos. Both the shown
+    // result and any request still in flight are stale.
+    requestRevision.current += 1;
     setResult(null);
     setPageInputs((pages) => pages.filter((page) => page.id !== id));
   }
 
   async function handleImageChange(id: number, event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    // Everything tied to the OLD image goes first, before the async decode:
-    // the consent, the image itself, and the result whose boxes were computed
-    // against it. Resetting only on the clear and error paths left two holes —
-    // a checkbox ticked for photo A authorised photo B, and a result rendered
-    // for A repainted its boxes onto B's pixels while decoding.
+    // Superseding the previous selection comes FIRST, before any early
+    // return: clearing the file input must also invalidate a decode still in
+    // flight, or image A completes after the clear and restores its preview.
+    // Decoding is asynchronous and a superseded selection still resolves —
+    // pick photo A, then photo B before A finishes, and A's write lands
+    // afterwards. Only the newest selection may write.
+    const selection = (selectionCounters.current.get(id) ?? 0) + 1;
+    selectionCounters.current.set(id, selection);
+    // Everything tied to the OLD image goes next, still before the async
+    // decode: the consent, the image itself, and the result (shown OR in
+    // flight) whose boxes were computed against it. Resetting only on the
+    // clear and error paths left two holes — a checkbox ticked for photo A
+    // authorised photo B, and a result rendered for A repainted its boxes
+    // onto B's pixels while decoding.
+    requestRevision.current += 1;
     updatePage(id, { image: null, sendImage: false });
     setResult(null);
     if (!file) return;
-    // Clearing up front is not enough on its own: decoding is asynchronous and
-    // a superseded selection still resolves. Pick photo A, then photo B before
-    // A finishes, and A's write lands afterwards — the page then shows A
-    // while the file input says B, which is the consent bug wearing a
-    // different hat. Only the newest selection may write.
-    const selection = (selectionCounters.current.get(id) ?? 0) + 1;
-    selectionCounters.current.set(id, selection);
     // Both helpers reject — an unreadable file, an undecodable image (a HEIC
     // on a browser without support, a truncated download). Uncaught, the
     // rejection was silent and the image kept its previous value, so the next
@@ -298,6 +310,10 @@ export default function Page() {
     setLoading(true);
     setError(null);
     setResult(null);
+    // The page structure this request is being posted against. If it changes
+    // while the request runs, the response's page indices describe pages that
+    // no longer exist in that order — drop it rather than paint it.
+    const revision = requestRevision.current;
     try {
       const response = await fetch("/api/extract", {
         method: "POST",
@@ -311,6 +327,7 @@ export default function Page() {
         }),
       });
       const body: unknown = await response.json();
+      if (requestRevision.current !== revision) return;
       if (!response.ok) {
         const message = typeof body === "object" && body !== null && "error" in body ? String((body as { error: unknown }).error) : response.statusText;
         setError(message);
@@ -318,6 +335,7 @@ export default function Page() {
       }
       setResult(body as ExtractionResponse);
     } catch (err) {
+      if (requestRevision.current !== revision) return;
       setError(err instanceof Error ? err.message : "request failed");
     } finally {
       setLoading(false);
