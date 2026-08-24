@@ -5,7 +5,7 @@
 import { analyze } from "@receipt-evidence/contract/analyze";
 import { evidenceLines } from "@receipt-evidence/contract/evidence";
 import type { ParsedField, ParsedReceipt } from "@receipt-evidence/contract/analyze";
-import { verifyEvidence, excerptContainsAmount, excerptContainsText, evidenceLineIndex } from "@receipt-evidence/contract/guards";
+import { verifyEvidence, excerptContainsAmount, excerptContainsText, evidencePosition } from "@receipt-evidence/contract/guards";
 import { parseDate } from "@receipt-evidence/contract/dates";
 import { checkArithmetic } from "@receipt-evidence/contract/arithmetic";
 import { anchorToLines } from "@receipt-evidence/contract/anchor";
@@ -253,30 +253,30 @@ function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unve
     if (nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt) {
       return [];
     }
-    const nameLine = evidenceLineIndex(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
-    const amountLine = evidenceLineIndex(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex));
-    if (nameLine === null || amountLine === null) return [];
-    return [{ index, name: nameEvidence, amount: amountEvidence, nameLine, amountLine }];
+    const namePos = evidencePosition(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
+    const amountPos = evidencePosition(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex));
+    if (namePos === null || amountPos === null) return [];
+    return [{ index, name: nameEvidence, amount: amountEvidence, namePos, amountPos }];
   });
-  // Positions compare as (pageIndex, lineIndex) — the scan is ONE ordered
-  // document (extract() joins every page for the parser for the same reason),
-  // so a name on page 0 paired with an amount on page 1 still has a place in
-  // the ordering, and a crossing between pages is as impossible on paper as
-  // one within a page.
-  const compare = (page: number, line: number, otherPage: number, otherLine: number) =>
-    Math.sign(page - otherPage) || Math.sign(line - otherLine);
+  // Positions compare as (pageIndex, lineIndex, offset) — the scan is ONE
+  // ordered document (extract() joins every page for the parser for the same
+  // reason), read the way the printer wrote it: pages in order, lines in
+  // order, left to right within a line. The offset is what still separates
+  // two printed rows after OCR merges them into one text line.
+  type Position = { line: number; offset: number };
+  const compare = (page: number, at: Position, otherPage: number, otherAt: Position) =>
+    Math.sign(page - otherPage) || Math.sign(at.line - otherAt.line) || Math.sign(at.offset - otherAt.offset);
   const demoted = new Set<number>();
   for (const a of split) {
     for (const b of split) {
       if (a.index >= b.index) continue;
-      const nameOrder = compare(a.name.pageIndex, a.nameLine, b.name.pageIndex, b.nameLine);
-      const amountOrder = compare(a.amount.pageIndex, a.amountLine, b.amount.pageIndex, b.amountLine);
-      // An equal line position is reuse only when the cited excerpt itself is
-      // shared: OCR can merge two item rows into ONE text line, and two
-      // distinct excerpts there are the receipt genuinely printing two
-      // products, not one half backing two items. (A repeated identical
-      // excerpt on different lines never reaches here — two runs means
-      // evidenceLineIndex already returned null.)
+      const nameOrder = compare(a.name.pageIndex, a.namePos, b.name.pageIndex, b.namePos);
+      const amountOrder = compare(a.amount.pageIndex, a.amountPos, b.amount.pageIndex, b.amountPos);
+      // An equal position is reuse only when the cited excerpt itself is
+      // shared — two distinct excerpts can only collide on a position by
+      // overlapping, which the guards already vouch for individually. (A
+      // repeated identical excerpt elsewhere on the page never reaches here —
+      // two matches make evidencePosition return null.)
       const nameShared = nameOrder === 0 && a.name.excerpt === b.name.excerpt;
       const amountShared = amountOrder === 0 && a.amount.excerpt === b.amount.excerpt;
       if (nameOrder * amountOrder < 0 || nameShared || amountShared) {

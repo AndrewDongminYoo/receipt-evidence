@@ -688,6 +688,38 @@ test("two items OCR merged onto one line are distinct claims, not reuse", async 
   assert.deepEqual(result.unverified, []);
 });
 
+test("a crossed pairing within one OCR-merged line is demoted by offset order", async () => {
+  // Codex P1 (round 4) on PR #5: with two rows merged into ONE line, a
+  // crossed pairing gives equal line positions and four distinct excerpts, so
+  // neither the ordering nor the reuse rule fired. Positions therefore carry
+  // the excerpt's offset within its line, and the ordering rule reads
+  // (page, line, offset) — the same left-to-right order the printer used.
+  const page = { text: "GS25\n커피 4,500 빵 2,000\n합계 6,500\n", lines: [] };
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "커피",
+          amountMinor: 2000,
+          nameEvidence: { pageIndex: 0, excerpt: "커피" },
+          amountEvidence: { pageIndex: 0, excerpt: "2,000" },
+        },
+        {
+          name: "빵",
+          amountMinor: 4500,
+          nameEvidence: { pageIndex: 0, excerpt: "빵" },
+          amountEvidence: { pageIndex: 0, excerpt: "4,500" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[1]?.verified, false);
+  assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
+});
+
 test("a quantity must be stated on one of the item's two cited lines", async () => {
   // On a flattened receipt the quantity column is a third location, cited by
   // neither excerpt — the model must omit the quantity it cannot support, and

@@ -108,19 +108,33 @@ export function excerptContainsText(excerpt: string, value: string): boolean {
  * and that tolerance is wanted.
  */
 /**
- * The page line an excerpt unambiguously begins on, or null when the page
- * cannot place it — no run, or more than one. The same `findLineRuns` the
- * other two callers use, so "where an excerpt is" has one definition; and the
- * same ambiguity rule as the anchor (two runs mean no answer), because a
- * position that might be the wrong row is worse than none.
+ * The place an excerpt unambiguously begins on a page — its line, and its
+ * character offset within that line's normalised text — or null when the page
+ * cannot place it: no run, more than one run, or more than one match inside
+ * the run. The same `findLineRuns` the other two callers use, so "where an
+ * excerpt is" has one definition; and the same ambiguity rule as the anchor
+ * (two answers mean no answer), because a position that might be the wrong
+ * one is worse than none.
  *
  * This exists for the cross-item pairing check in the extraction pipeline: a
  * split item's name and amount verify against their own lines, so ordering
- * between items is the only thing left that binds a name to ITS amount.
+ * between items is the only thing left that binds a name to ITS amount. The
+ * offset is what carries that ordering when OCR merges two printed rows into
+ * ONE text line — the line index alone reads both rows as the same place.
  */
-export function evidenceLineIndex(excerpt: string, pageText: string): number | null {
-  const runs = findLineRuns(excerpt, pageText.split("\n"));
-  return runs.length === 1 ? (runs[0]?.start ?? null) : null;
+export function evidencePosition(excerpt: string, pageText: string): { line: number; offset: number } | null {
+  const lines = pageText.split("\n");
+  const runs = findLineRuns(excerpt, lines);
+  const run = runs[0];
+  if (runs.length !== 1 || run === undefined) return null;
+  const runText = lines
+    .slice(run.start, run.start + run.length)
+    .map(normalize)
+    .join("\n");
+  const needle = normalize(excerpt);
+  const offset = runText.indexOf(needle);
+  if (offset === -1 || runText.indexOf(needle, offset + 1) !== -1) return null;
+  return { line: run.start, offset };
 }
 
 export function verifyEvidence(excerpt: string, pageText: string): boolean {
