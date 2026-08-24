@@ -783,6 +783,70 @@ test("one printed value quoted two different ways is still reuse", async () => {
   assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
 });
 
+test("an unsplit item's evidence is registered — a split item cannot reuse its line", async () => {
+  // Codex P1 (round 6) on PR #5: an item citing one line for both halves was
+  // excluded from the pairing registry entirely, so a split item reusing that
+  // line's amount had nothing to collide with — and the duplicated amount
+  // still summed to the printed total.
+  const page = { text: "COFFEE 100\nBREAD\nTOTAL 200\n", lines: [] };
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "COFFEE",
+          amountMinor: 100,
+          nameEvidence: { pageIndex: 0, excerpt: "COFFEE 100" },
+          amountEvidence: { pageIndex: 0, excerpt: "COFFEE 100" },
+        },
+        {
+          name: "BREAD",
+          amountMinor: 100,
+          nameEvidence: { pageIndex: 0, excerpt: "BREAD" },
+          amountEvidence: { pageIndex: 0, excerpt: "COFFEE 100" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.arithmetic.agrees, true, "the duplicated amount sums to the total — arithmetic cannot catch it");
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[1]?.verified, false);
+  assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
+});
+
+test("one printed amount quoted whole-line and bare is still reuse", async () => {
+  // Codex P1 (round 6) on PR #5: "PRICE 100" and "100" start at different
+  // offsets, so start-equality missed them sharing the one printed 100.
+  // Reuse now also fires when two spans OVERLAP and back the same claimed
+  // value; overlapping spans backing different values (a whole merged line
+  // beside one of its own tokens) remain two claims.
+  const page = { text: "커피\n빵\nPRICE 100\nTOTAL 200\n", lines: [] };
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "커피",
+          amountMinor: 100,
+          nameEvidence: { pageIndex: 0, excerpt: "커피" },
+          amountEvidence: { pageIndex: 0, excerpt: "PRICE 100" },
+        },
+        {
+          name: "빵",
+          amountMinor: 100,
+          nameEvidence: { pageIndex: 0, excerpt: "빵" },
+          amountEvidence: { pageIndex: 0, excerpt: "100" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[1]?.verified, false);
+  assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
+});
+
 test("a quantity must be stated on one of the item's two cited lines", async () => {
   // On a flattened receipt the quantity column is a third location, cited by
   // neither excerpt — the model must omit the quantity it cannot support, and

@@ -5,7 +5,7 @@
 import { analyze } from "@receipt-evidence/contract/analyze";
 import { evidenceLines } from "@receipt-evidence/contract/evidence";
 import type { ParsedField, ParsedReceipt } from "@receipt-evidence/contract/analyze";
-import { verifyEvidence, excerptContainsAmount, excerptContainsText, evidencePosition } from "@receipt-evidence/contract/guards";
+import { verifyEvidence, excerptContainsAmount, excerptContainsText, evidenceSpan } from "@receipt-evidence/contract/guards";
 import { parseDate } from "@receipt-evidence/contract/dates";
 import { checkArithmetic } from "@receipt-evidence/contract/arithmetic";
 import { anchorToLines } from "@receipt-evidence/contract/anchor";
@@ -247,49 +247,73 @@ function buildItem(
  * supports — it cannot catch a lone mispaired item, and does not pretend to.
  */
 function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unverified: string[]): void {
-  // Positions compare as (pageIndex, lineIndex, offset) — the scan is ONE
-  // ordered document (extract() joins every page for the parser for the same
-  // reason), read the way the printer wrote it: pages in order, lines in
-  // order, left to right within a line. The offset is what still separates
-  // two printed rows after OCR merges them into one text line.
-  type Position = { line: number; offset: number };
-  const compare = (page: number, at: Position, otherPage: number, otherAt: Position) =>
-    Math.sign(page - otherPage) || Math.sign(at.line - otherAt.line) || Math.sign(at.offset - otherAt.offset);
+  // Every claim reduces to the SPAN it occupies — (pageIndex, start, end) in
+  // the page's normalised text. Spans carry both jobs at once: document
+  // order (the scan is ONE ordered document, pages then lines then left to
+  // right, the way the printer wrote it), and reuse (two claims on one
+  // printed token overlap). Comparing anything weaker — excerpt strings,
+  // then start offsets — left a hole per round of review; the span is where
+  // those fixes converge.
+  interface Span {
+    page: number;
+    start: number;
+    end: number;
+  }
+  interface Entry {
+    index: number;
+    split: boolean;
+    name: Span;
+    amount: Span;
+  }
   const demoted = new Set<number>();
-  type Entry = { index: number; namePage: number; amountPage: number; namePos: Position; amountPos: Position };
-  const split: Entry[] = [];
+  const entries: Entry[] = [];
   for (const [index, item] of items.entries()) {
     if (!item.verified) continue;
     const { nameEvidence, amountEvidence } = item;
-    if (nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt) {
+    const split = !(nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt);
+    const nameSpan = evidenceSpan(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
+    const amountSpan = split ? evidenceSpan(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex)) : nameSpan;
+    if (nameSpan === null || amountSpan === null) {
+      // Ambiguity fails CLOSED for a split item: the span is the binding, so
+      // an excerpt the page cannot place (a repeated printed amount, say)
+      // leaves the association unestablished — excluding the item from the
+      // check while calling it verified would make repetition a bypass. The
+      // model's remedy is to quote enough adjacent context to be unambiguous.
+      // An UNSPLIT item keeps the anchor's precedent instead — its one line
+      // binds its halves internally, so ambiguity costs it the box and its
+      // registry entry here, not its verification.
+      if (split) demoted.add(index);
       continue;
     }
-    const namePos = evidencePosition(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
-    const amountPos = evidencePosition(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex));
-    // Ambiguity fails CLOSED for a split item: the position is the binding,
-    // so an excerpt the page cannot place (a repeated printed amount, say)
-    // leaves the association unestablished — excluding the item from the
-    // check while calling it verified would make repetition a bypass. The
-    // model's remedy is to quote enough adjacent context to be unambiguous;
-    // the excerpt cap leaves room for that.
-    if (namePos === null || amountPos === null) {
-      demoted.add(index);
-      continue;
-    }
-    split.push({ index, namePage: nameEvidence.pageIndex, amountPage: amountEvidence.pageIndex, namePos, amountPos });
+    entries.push({
+      index,
+      split,
+      name: { page: nameEvidence.pageIndex, start: nameSpan.start, end: nameSpan.start + nameSpan.length },
+      amount: { page: amountEvidence.pageIndex, start: amountSpan.start, end: amountSpan.start + amountSpan.length },
+    });
   }
-  for (const a of split) {
-    for (const b of split) {
+  const compare = (a: Span, b: Span) => Math.sign(a.page - b.page) || Math.sign(a.start - b.start);
+  // Reuse: two claims on the same printed token. The same start is always
+  // reuse, whatever each quoted around it ("1,900" vs "1,900\n1,700"); mere
+  // overlap is reuse only when both items claim the same VALUE ("PRICE 100"
+  // and "100" both claiming 100) — a whole merged line quoted beside one of
+  // its own tokens backs a DIFFERENT value and stays two claims.
+  const shared = (a: Span, b: Span, sameClaim: boolean) =>
+    a.page === b.page && (a.start === b.start || (sameClaim && a.start < b.end && b.start < a.end));
+  for (const a of entries) {
+    for (const b of entries) {
       if (a.index >= b.index) continue;
-      const nameOrder = compare(a.namePage, a.namePos, b.namePage, b.namePos);
-      const amountOrder = compare(a.amountPage, a.amountPos, b.amountPage, b.amountPos);
-      // An inversion is a crossing; an equal position is reuse — the same
-      // printed token claimed by two items, however each quoted it ("1,900"
-      // and "1,900\n1,700" both start on the same source token). Comparing
-      // excerpt strings instead of positions let the second quotation
-      // through. (An identical excerpt repeated elsewhere on the page never
-      // reaches here — two matches already failed closed above.)
-      if (nameOrder * amountOrder < 0 || nameOrder === 0 || amountOrder === 0) {
+      const itemA = items[a.index];
+      const itemB = items[b.index];
+      if (itemA === undefined || itemB === undefined) continue;
+      const nameReuse = shared(a.name, b.name, itemA.name === itemB.name);
+      const amountReuse = shared(a.amount, b.amount, itemA.amountMinor === itemB.amountMinor);
+      // A crossing (order inversion) is checked between SPLIT items only: an
+      // unsplit item's halves bind each other, and OCR emits a kept-together
+      // row at an unpredictable point of a flattened region, so its order
+      // against split halves is not evidence of anything.
+      const crossed = a.split && b.split && compare(a.name, b.name) * compare(a.amount, b.amount) < 0;
+      if (nameReuse || amountReuse || crossed) {
         demoted.add(a.index);
         demoted.add(b.index);
       }
