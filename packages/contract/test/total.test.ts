@@ -9,6 +9,12 @@ test("selectTotal ignores discount, subtotal and tax rows", () => {
   assert.equal(selectTotal(lines, "KRW")?.text, "합계 14,800");
 });
 
+test("selectTotal ignores a gift-certificate payment that follows the card payment", () => {
+  const lines = evidenceLines("신용카드 결제금액: 4,300원\n상품권 결제금액: 5,000\n");
+
+  assert.equal(selectTotal(lines, "KRW")?.text, "신용카드 결제금액: 4,300원");
+});
+
 test("selectTotal keeps a paid total that also reports an item count", () => {
   const lines = evidenceLines("TOTAL 2 ITEMS $24.95\n");
 

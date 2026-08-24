@@ -51,6 +51,34 @@ test("a fabricated model item survives as unverified, never as fact", async () =
   assert.equal(result.arithmetic.agrees, false);
 });
 
+test("a gift certificate reconciles the item sum with the card payment", async () => {
+  const page = {
+    text:
+      "GS25\n말차마카다쿠키 2,400\n행운한입쑥찰떡 4,000\n5개) 아카페 2,900\n합계 9,300\n상품권결제금액: 5,000\n신용카드 결제금액: 4,300원\n",
+    lines: [],
+  };
+  const client = {
+    async complete() {
+      return {
+        items: [
+          { name: "말차마카다쿠키", amountMinor: 2400, evidence: { pageIndex: 0, excerpt: "말차마카다쿠키 2,400" } },
+          { name: "행운한입쑥찰떡", amountMinor: 4000, evidence: { pageIndex: 0, excerpt: "행운한입쑥찰떡 4,000" } },
+          { name: "5개) 아카페", amountMinor: 2900, evidence: { pageIndex: 0, excerpt: "5개) 아카페 2,900" } },
+        ],
+      };
+    },
+  };
+
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.deepEqual(result.arithmetic, {
+    itemSumMinor: 9300,
+    claimedTotalMinor: 4300,
+    reconciledTenderMinor: 5000,
+    agrees: true,
+  });
+});
+
 test("the parser's own fields are marked as coming from the parser", async () => {
   const client = { async complete() { return { items: [] }; } };
 

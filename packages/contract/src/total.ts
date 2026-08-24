@@ -7,6 +7,7 @@
 import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
 import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts.ts";
+import { isTenderPaymentLine } from "./tenders.ts";
 
 // Exported: currency.ts (Task 6) ports `_splitLabelCurrency`, which tests
 // this same label against the rows above a split total. Dart holds one copy
@@ -172,6 +173,7 @@ function labeledAmount(line: string, currency: Currency): number | null {
  * A count only disqualifies a row that carries no money: a receipt may
  * summarise its purchase as `TOTAL 2 ITEMS $24.95`. */
 function namesAnotherFigure(line: string): boolean {
+  if (isTenderPaymentLine(line)) return true;
   if (OTHER_AMOUNT_LABEL.test(line)) return true;
   if (!COUNT_LABEL.test(line)) return false;
   return !WON_MARKER.test(line) && !DOLLAR_MARKER.test(line);

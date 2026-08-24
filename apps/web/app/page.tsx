@@ -133,9 +133,16 @@ function collectBoxes(result: ExtractionResponse): BoxEntry[] {
 }
 
 function ArithmeticVerdict({ arithmetic }: { arithmetic: ExtractionResponse["arithmetic"] }) {
-  const { itemSumMinor, claimedTotalMinor, agrees } = arithmetic;
+  const { itemSumMinor, claimedTotalMinor, reconciledTenderMinor, agrees } = arithmetic;
   const verdict = agrees === null ? "not-computable" : agrees ? "agrees" : "mismatch";
-  const label = agrees === null ? "could not be computed" : agrees ? "agrees" : "mismatch";
+  const label =
+    agrees === null
+      ? "could not be computed"
+      : reconciledTenderMinor !== null
+        ? "reconciled by an additional tender"
+        : agrees
+          ? "agrees"
+          : "mismatch";
   return (
     <section className={`arithmetic arithmetic-${verdict}`}>
       <h2>Arithmetic</h2>
@@ -145,6 +152,12 @@ function ArithmeticVerdict({ arithmetic }: { arithmetic: ExtractionResponse["ari
         <dd>{itemSumMinor ?? "—"}</dd>
         <dt>claimed total (minor units)</dt>
         <dd>{claimedTotalMinor ?? "—"}</dd>
+        {reconciledTenderMinor !== null && (
+          <>
+            <dt>additional tender (minor units)</dt>
+            <dd>{reconciledTenderMinor}</dd>
+          </>
+        )}
       </dl>
     </section>
   );

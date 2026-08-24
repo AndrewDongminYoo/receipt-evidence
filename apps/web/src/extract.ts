@@ -219,7 +219,7 @@ function buildItem(
 }
 
 function emptyReceipt(): ParsedReceipt {
-  return { merchant: null, purchaseDate: null, paidTotal: null, currency: "KRW", reference: null, items: [], lines: [] };
+  return { merchant: null, purchaseDate: null, paidTotal: null, currency: "KRW", reference: null, items: [], tenders: [], lines: [] };
 }
 
 export async function extract(
@@ -298,7 +298,11 @@ export async function extract(
 
   const items = reply.items.map((item, index) => buildItem(item, index, pages, referenceDate, unverified, disagreements));
 
-  const arithmetic = checkArithmetic(items, paidTotal?.value ?? null);
+  const arithmetic = checkArithmetic(
+    items,
+    paidTotal?.value ?? null,
+    parsed.tenders.map((tender) => tender.amountMinor),
+  );
 
   return {
     fields: { merchant, purchaseDate, paidTotal, reference, currency: parsed.currency },

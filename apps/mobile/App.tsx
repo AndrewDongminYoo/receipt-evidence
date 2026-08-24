@@ -197,7 +197,9 @@ function Result({ image, result }: { image: ReceiptImage; result: ExtractionResp
         {arithmetic.agrees === null
           ? "not computable (no items or no total)"
           : arithmetic.agrees
-            ? `items sum to the total (${arithmetic.itemSumMinor})`
+            ? arithmetic.reconciledTenderMinor === null
+              ? `items sum to the total (${arithmetic.itemSumMinor})`
+              : `items sum to ${arithmetic.itemSumMinor}; total ${arithmetic.claimedTotalMinor} plus other tender ${arithmetic.reconciledTenderMinor}`
             : `items sum to ${arithmetic.itemSumMinor}, total says ${arithmetic.claimedTotalMinor}`}
       </Text>
       {unverified.length > 0 && <Text style={styles.failed}>Unverified: {unverified.join(", ")}</Text>}

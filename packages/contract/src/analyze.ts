@@ -13,6 +13,7 @@ import { selectTotal, isAmountOnlyRow } from "./total.ts";
 import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts.ts";
 import { inferCurrency } from "./currency.ts";
 import { extractItems, type ParsedItem } from "./items.ts";
+import { extractTenders, type ParsedTender } from "./tenders.ts";
 
 export interface ParsedField<T> {
   value: T;
@@ -26,6 +27,7 @@ export interface ParsedReceipt {
   currency: Currency;
   reference: ParsedField<string> | null;
   items: ParsedItem[];
+  tenders: ParsedTender[];
   lines: OcrEvidence[];
 }
 
@@ -109,6 +111,7 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
   const currency = inferCurrency(rawText, lines, totalEvidence);
 
   const items = extractItems(lines, currency);
+  const tenders = extractTenders(lines);
 
   // Deliberate deviation from receipt_analyzer.dart:154/:167, which takes
   // `lines.first` unconditionally with no amount/date filter. Dart's
@@ -137,5 +140,5 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
   const merchant: ParsedField<string> | null =
     merchantEvidence === null ? null : { value: merchantEvidence.text, evidence: merchantEvidence };
 
-  return { merchant, purchaseDate, paidTotal, currency, reference, items, lines };
+  return { merchant, purchaseDate, paidTotal, currency, reference, items, tenders, lines };
 }
