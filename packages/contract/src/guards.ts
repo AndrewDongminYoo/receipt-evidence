@@ -107,6 +107,22 @@ export function excerptContainsText(excerpt: string, value: string): boolean {
  * Whitespace is collapsed within each line, because OCR spacing wobbles there
  * and that tolerance is wanted.
  */
+/**
+ * The page line an excerpt unambiguously begins on, or null when the page
+ * cannot place it — no run, or more than one. The same `findLineRuns` the
+ * other two callers use, so "where an excerpt is" has one definition; and the
+ * same ambiguity rule as the anchor (two runs mean no answer), because a
+ * position that might be the wrong row is worse than none.
+ *
+ * This exists for the cross-item pairing check in the extraction pipeline: a
+ * split item's name and amount verify against their own lines, so ordering
+ * between items is the only thing left that binds a name to ITS amount.
+ */
+export function evidenceLineIndex(excerpt: string, pageText: string): number | null {
+  const runs = findLineRuns(excerpt, pageText.split("\n"));
+  return runs.length === 1 ? (runs[0]?.start ?? null) : null;
+}
+
 export function verifyEvidence(excerpt: string, pageText: string): boolean {
   // An empty (or whitespace-only) excerpt is not evidence of anything, and
   // every string contains the empty string — without this the guard fails

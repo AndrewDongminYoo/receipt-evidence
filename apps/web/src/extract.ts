@@ -5,7 +5,7 @@
 import { analyze } from "@receipt-evidence/contract/analyze";
 import { evidenceLines } from "@receipt-evidence/contract/evidence";
 import type { ParsedField, ParsedReceipt } from "@receipt-evidence/contract/analyze";
-import { verifyEvidence, excerptContainsAmount, excerptContainsText } from "@receipt-evidence/contract/guards";
+import { verifyEvidence, excerptContainsAmount, excerptContainsText, evidenceLineIndex } from "@receipt-evidence/contract/guards";
 import { parseDate } from "@receipt-evidence/contract/dates";
 import { checkArithmetic } from "@receipt-evidence/contract/arithmetic";
 import { anchorToLines } from "@receipt-evidence/contract/anchor";
@@ -229,6 +229,56 @@ function buildItem(
   };
 }
 
+/**
+ * Demotes split-evidence items whose name-to-amount pairing the receipt never
+ * made. Each half of a split item verifies against its own line, so a model
+ * could pair item A's name with item B's amount and vice versa — the sum is
+ * unchanged, so `checkArithmetic` cannot see the permutation, and both
+ * clients would present the crossed association under a verified badge.
+ *
+ * Column flattening preserves row order — that is what makes the columns
+ * columns — so among the items citing split evidence on the same pages, the
+ * name lines and the amount lines must agree on the items' order, and one
+ * printed line cannot back two items' halves. An item whose excerpt the page
+ * cannot place unambiguously contributes nothing here (the same rule as the
+ * anchor: two runs mean no answer); a single split item likewise has nothing
+ * to be ordered against. The pairwise check is the strongest binding the
+ * page's text supports — it cannot catch a lone mispaired item, and does not
+ * pretend to.
+ */
+function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unverified: string[]): void {
+  const split = items.flatMap((item, index) => {
+    if (!item.verified) return [];
+    const { nameEvidence, amountEvidence } = item;
+    if (nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt) {
+      return [];
+    }
+    const nameLine = evidenceLineIndex(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
+    const amountLine = evidenceLineIndex(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex));
+    if (nameLine === null || amountLine === null) return [];
+    return [{ index, namePage: nameEvidence.pageIndex, amountPage: amountEvidence.pageIndex, nameLine, amountLine }];
+  });
+  const demoted = new Set<number>();
+  for (const a of split) {
+    for (const b of split) {
+      if (a.index >= b.index) continue;
+      if (a.namePage !== b.namePage || a.amountPage !== b.amountPage) continue;
+      const nameOrder = Math.sign(a.nameLine - b.nameLine);
+      const amountOrder = Math.sign(a.amountLine - b.amountLine);
+      if (nameOrder * amountOrder < 0 || nameOrder === 0 || amountOrder === 0) {
+        demoted.add(a.index);
+        demoted.add(b.index);
+      }
+    }
+  }
+  for (const index of [...demoted].sort((left, right) => left - right)) {
+    const item = items[index];
+    if (item === undefined) continue;
+    items[index] = { ...item, verified: false };
+    unverified.push(`items[${index}]`);
+  }
+}
+
 function emptyReceipt(): ParsedReceipt {
   return { merchant: null, purchaseDate: null, paidTotal: null, currency: "KRW", reference: null, items: [], tenders: [], lines: [] };
 }
@@ -308,6 +358,7 @@ export async function extract(
   );
 
   const items = reply.items.map((item, index) => buildItem(item, index, pages, referenceDate, unverified, disagreements));
+  demoteCrossedItems(items, pages, unverified);
   const tenders = parsed.tenders
     .map((tender, index) =>
       resolve(

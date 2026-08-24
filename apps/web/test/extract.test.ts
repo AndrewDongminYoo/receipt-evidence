@@ -529,6 +529,68 @@ test("split evidence still checks each part against its OWN line", async () => {
   assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
 });
 
+test("crossed name/amount pairings are demoted, even though arithmetic still agrees", async () => {
+  // Codex P1 on PR #5: each half of a split item verifies against its own
+  // line, so a model could pair A's name with B's amount and vice versa —
+  // the sum is unchanged, so arithmetic cannot catch the permutation. Column
+  // flattening preserves row order, so the items' name lines and amount
+  // lines must agree on it; a crossing is an association the receipt never
+  // made.
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1700,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,700" },
+        },
+        {
+          name: "최강록명란",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "최강록명란" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [FLATTENED_PAGE] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[1]?.verified, false);
+  assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
+  assert.equal(result.arithmetic.agrees, true, "the permutation keeps the sum — which is why ordering has to");
+});
+
+test("one printed line cannot back two split items' halves", async () => {
+  // The other pairing the receipt never made: one name reused for two
+  // amounts (or one amount claimed by two names). Ordering alone cannot see
+  // it — two items citing the same name line are trivially "in order".
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+        },
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1700,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,700" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [FLATTENED_PAGE] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[1]?.verified, false);
+  assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
+});
+
 test("a quantity must be stated on one of the item's two cited lines", async () => {
   // On a flattened receipt the quantity column is a third location, cited by
   // neither excerpt — the model must omit the quantity it cannot support, and
