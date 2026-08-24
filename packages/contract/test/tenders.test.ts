@@ -21,6 +21,12 @@ test("extractTenders ignores a tender balance that mentions payment", () => {
   assert.deepEqual(extractTenders(lines, "USD"), []);
 });
 
+test("extractTenders ignores a tender offer for a future payment", () => {
+  const lines = evidenceLines("Coupon valid for use on next payment: $5.00");
+
+  assert.deepEqual(extractTenders(lines, "USD"), []);
+});
+
 test("extractTenders reads English tender payments in USD", () => {
   for (const label of ["Gift Card", "Gift Certificate", "Voucher"]) {
     const lines = evidenceLines(`${label} Payment: $5.00`);
