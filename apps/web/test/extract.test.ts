@@ -720,6 +720,69 @@ test("a crossed pairing within one OCR-merged line is demoted by offset order", 
   assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
 });
 
+test("a split item whose excerpt the page cannot place unambiguously is demoted", async () => {
+  // Codex P1 (round 5) on PR #5: an ambiguous position used to EXCLUDE the
+  // item from the pairing check while leaving it verified — a repeated
+  // printed amount was a bypass. For a split item the position is the
+  // binding, so ambiguity fails closed; the model's remedy is to quote
+  // enough adjacent context to be unambiguous.
+  const page = { text: "곤약젤리복숭아\n최강록명란\n1,900\n1,700\n1,900\n", lines: [] };
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+        },
+        {
+          name: "최강록명란",
+          amountMinor: 1700,
+          nameEvidence: { pageIndex: 0, excerpt: "최강록명란" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,700" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false, "1,900 appears twice — the binding cannot be established");
+  assert.equal(result.items[1]?.verified, true, "1,700 is unambiguous and ordered consistently");
+  assert.deepEqual(result.unverified, ["items[0]"]);
+});
+
+test("one printed value quoted two different ways is still reuse", async () => {
+  // Codex P1 (round 5) on PR #5: reuse compared excerpt STRINGS, so citing
+  // the same printed 1,900 as "1,900" and as "1,900\n1,700" evaded it.
+  // Positions carry offsets now, so an identical start position IS the
+  // reuse signal, whatever the quotation around it.
+  const page = { text: "커피\n빵\n1,900\n1,700\n", lines: [] };
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "커피",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "커피" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+        },
+        {
+          name: "빵",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "빵" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900\n1,700" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[1]?.verified, false);
+  assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
+});
+
 test("a quantity must be stated on one of the item's two cited lines", async () => {
   // On a flattened receipt the quantity column is a third location, cited by
   // neither excerpt — the model must omit the quantity it cannot support, and

@@ -240,24 +240,13 @@ function buildItem(
  * columns — so among the items citing split evidence, the name positions and
  * the amount positions must agree on the items' order, and one printed
  * excerpt cannot back two items' halves. An item whose excerpt the page
- * cannot place unambiguously contributes nothing here (the same rule as the
- * anchor: two runs mean no answer); a single split item likewise has nothing
- * to be ordered against. The pairwise check is the strongest binding the
- * page's text supports — it cannot catch a lone mispaired item, and does not
- * pretend to.
+ * cannot place unambiguously is demoted outright — for a split item the
+ * position IS the binding, so no position means no established association.
+ * A single unambiguous split item has nothing to be ordered against and
+ * passes. The pairwise check is the strongest binding the page's text
+ * supports — it cannot catch a lone mispaired item, and does not pretend to.
  */
 function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unverified: string[]): void {
-  const split = items.flatMap((item, index) => {
-    if (!item.verified) return [];
-    const { nameEvidence, amountEvidence } = item;
-    if (nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt) {
-      return [];
-    }
-    const namePos = evidencePosition(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
-    const amountPos = evidencePosition(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex));
-    if (namePos === null || amountPos === null) return [];
-    return [{ index, name: nameEvidence, amount: amountEvidence, namePos, amountPos }];
-  });
   // Positions compare as (pageIndex, lineIndex, offset) — the scan is ONE
   // ordered document (extract() joins every page for the parser for the same
   // reason), read the way the printer wrote it: pages in order, lines in
@@ -267,19 +256,40 @@ function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unve
   const compare = (page: number, at: Position, otherPage: number, otherAt: Position) =>
     Math.sign(page - otherPage) || Math.sign(at.line - otherAt.line) || Math.sign(at.offset - otherAt.offset);
   const demoted = new Set<number>();
+  type Entry = { index: number; namePage: number; amountPage: number; namePos: Position; amountPos: Position };
+  const split: Entry[] = [];
+  for (const [index, item] of items.entries()) {
+    if (!item.verified) continue;
+    const { nameEvidence, amountEvidence } = item;
+    if (nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt) {
+      continue;
+    }
+    const namePos = evidencePosition(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
+    const amountPos = evidencePosition(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex));
+    // Ambiguity fails CLOSED for a split item: the position is the binding,
+    // so an excerpt the page cannot place (a repeated printed amount, say)
+    // leaves the association unestablished — excluding the item from the
+    // check while calling it verified would make repetition a bypass. The
+    // model's remedy is to quote enough adjacent context to be unambiguous;
+    // the excerpt cap leaves room for that.
+    if (namePos === null || amountPos === null) {
+      demoted.add(index);
+      continue;
+    }
+    split.push({ index, namePage: nameEvidence.pageIndex, amountPage: amountEvidence.pageIndex, namePos, amountPos });
+  }
   for (const a of split) {
     for (const b of split) {
       if (a.index >= b.index) continue;
-      const nameOrder = compare(a.name.pageIndex, a.namePos, b.name.pageIndex, b.namePos);
-      const amountOrder = compare(a.amount.pageIndex, a.amountPos, b.amount.pageIndex, b.amountPos);
-      // An equal position is reuse only when the cited excerpt itself is
-      // shared — two distinct excerpts can only collide on a position by
-      // overlapping, which the guards already vouch for individually. (A
-      // repeated identical excerpt elsewhere on the page never reaches here —
-      // two matches make evidencePosition return null.)
-      const nameShared = nameOrder === 0 && a.name.excerpt === b.name.excerpt;
-      const amountShared = amountOrder === 0 && a.amount.excerpt === b.amount.excerpt;
-      if (nameOrder * amountOrder < 0 || nameShared || amountShared) {
+      const nameOrder = compare(a.namePage, a.namePos, b.namePage, b.namePos);
+      const amountOrder = compare(a.amountPage, a.amountPos, b.amountPage, b.amountPos);
+      // An inversion is a crossing; an equal position is reuse — the same
+      // printed token claimed by two items, however each quoted it ("1,900"
+      // and "1,900\n1,700" both start on the same source token). Comparing
+      // excerpt strings instead of positions let the second quotation
+      // through. (An identical excerpt repeated elsewhere on the page never
+      // reaches here — two matches already failed closed above.)
+      if (nameOrder * amountOrder < 0 || nameOrder === 0 || amountOrder === 0) {
         demoted.add(a.index);
         demoted.add(b.index);
       }
