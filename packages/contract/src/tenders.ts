@@ -9,8 +9,9 @@ export interface ParsedTender {
 }
 
 const TENDER_LABEL = /상품\s*권|gift\s*(?:card|certificate)|voucher|쿠폰|coupon|포인트/i;
-const TENDER_NON_PAYMENT_LABEL =
-  /\bbalance\b|잔액|\b(?:next|future)\s+(?:payment|use)\b|\b(?:valid|available)\b.*\b(?:payment|use)\b/i;
+const TENDER_BALANCE_LABEL = /\bbalance\b|잔액/i;
+const TENDER_FUTURE_USE_LABEL =
+  /\b(?:next|future)\s+(?:payment|use|purchase|order)\b|\b(?:valid|available)\b.*\b(?:payment|use|purchase|order)\b/i;
 const TENDER_PAYMENT_LABEL = /결제\s*금액|사용\s*금액|결제|사용|차감|\bpayment\b/i;
 const TENDER_PAYMENT_AMOUNT =
   /(?:결제\s*금액|사용\s*금액|결제|사용|차감|\bpayment\b)\s*[:：]?\s*(?:[$₩#]\s*|\b(?:KRW|USD)\s*)?(\d[\d,]*(?:\.\d{2})?)/i;
@@ -28,9 +29,10 @@ export function isTenderPaymentLine(text: string): boolean {
 export function extractTenders(lines: readonly OcrEvidence[], currency: Currency): ParsedTender[] {
   const tenders: ParsedTender[] = [];
   for (const evidence of lines) {
-    if (!isTenderPaymentLine(evidence.text) || TENDER_NON_PAYMENT_LABEL.test(evidence.text)) continue;
-    const amountText = TENDER_PAYMENT_AMOUNT.exec(evidence.text)?.[1];
-    const amountMinor = amountText === undefined ? null : parseAmountMinor(amountText, currency);
+    if (!isTenderPaymentLine(evidence.text) || TENDER_FUTURE_USE_LABEL.test(evidence.text)) continue;
+    const paymentMatch = TENDER_PAYMENT_AMOUNT.exec(evidence.text);
+    if (paymentMatch === null || TENDER_BALANCE_LABEL.test(evidence.text.slice(0, paymentMatch.index))) continue;
+    const amountMinor = parseAmountMinor(paymentMatch[1], currency);
     if (amountMinor !== null && amountMinor > 0) tenders.push({ amountMinor, evidence });
   }
   return tenders;

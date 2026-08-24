@@ -119,6 +119,30 @@ test("an English USD tender is evidenced before it reconciles a card payment", a
   });
 });
 
+test("a future tender offer cannot reconcile a card payment", async () => {
+  const page = {
+    text: "COFFEE SHOP\nCoffee $12.99\nCredit Card Payment: $7.99\nCoupon Payment: $5.00 on your next purchase\n",
+    lines: [],
+  };
+  const client = {
+    async complete() {
+      return {
+        items: [{ name: "Coffee", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "Coffee $12.99" } }],
+      };
+    },
+  };
+
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.deepEqual(result.tenders, []);
+  assert.deepEqual(result.arithmetic, {
+    itemSumMinor: 1299,
+    claimedTotalMinor: 799,
+    reconciledTenderMinor: null,
+    agrees: false,
+  });
+});
+
 test("the parser's own fields are marked as coming from the parser", async () => {
   const client = { async complete() { return { items: [] }; } };
 
