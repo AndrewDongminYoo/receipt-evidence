@@ -10,7 +10,7 @@ export interface ParsedTender {
 
 const TENDER_LABEL = /상품\s*권|gift\s*(?:card|certificate)|voucher|쿠폰|coupon|포인트/i;
 const TENDER_BALANCE_LABEL = /\bbalance\b|잔액/i;
-const TENDER_REFERENCE_LABEL = /\b(reference|approval|auth)\b|(?:승인|카드)\s*번호/i;
+const TENDER_REFERENCE_LABEL = /\b(reference|authorization|approval|auth|card\s*number)\b|(?:승인|카드)\s*번호/i;
 const TENDER_UNSUCCESSFUL_LABEL = /\b(declined|failed|voided|reversed)\b/i;
 const TENDER_FUTURE_USE_LABEL =
   /\b(?:next|future|later)\s+(?:payment|use|purchase|order|visit|redemption|transaction)\b|\b(?:valid|available)\b.*\b(?:payment|use|purchase|order|visit|redemption|transaction)\b|사용\s*(?:가능|예정)|(?:다음|차후)\s*(?:결제|사용|구매|주문)/i;

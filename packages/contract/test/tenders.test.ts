@@ -99,6 +99,14 @@ test("extractTenders ignores a trailing Korean approval identifier", () => {
   assert.deepEqual(extractTenders(lines, "KRW"), [{ amountMinor: 5000, evidence: lines[0] }]);
 });
 
+test("extractTenders ignores trailing English payment identifiers", () => {
+  for (const suffix of ["Card Number 1234", "Authorization Code 1234"]) {
+    const lines = evidenceLines(`Gift Card Payment 5.00 ${suffix}`);
+
+    assert.deepEqual(extractTenders(lines, "USD"), [{ amountMinor: 500, evidence: lines[0] }], suffix);
+  }
+});
+
 test("extractTenders reads English tender payments in USD", () => {
   for (const label of ["Gift Card", "Gift Certificate", "Voucher"]) {
     const lines = evidenceLines(`${label} Payment: $5.00`);
