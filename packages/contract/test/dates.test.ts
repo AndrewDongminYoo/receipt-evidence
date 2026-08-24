@@ -10,6 +10,11 @@ test("parseDate reads Korean, dotted, and slashed forms", () => {
   assert.deepEqual(parseDate("07/29/2026"), new Date(2026, 6, 29));
 });
 
+test("parseDate keeps bounded four-digit historical years", () => {
+  assert.deepEqual(parseDate("1999년 12월 31일"), new Date(1999, 11, 31));
+  assert.deepEqual(parseDate("12/31/1999"), new Date(1999, 11, 31));
+});
+
 test("parseDate rejects a calendar-invalid date", () => {
   assert.equal(parseDate("2026-02-31"), null);
 });
