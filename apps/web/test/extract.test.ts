@@ -79,6 +79,46 @@ test("a gift certificate reconciles the item sum with the card payment", async (
   });
 });
 
+test("an English USD tender is evidenced before it reconciles a card payment", async () => {
+  const page = {
+    text: "COFFEE SHOP\nCoffee $12.99\nCredit Card Payment: $7.99\nGift Certificate Payment: $5.00\n",
+    lines: [
+      { text: "Coffee $12.99", frame: { x: 0, y: 0, width: 10, height: 10 } },
+      { text: "Credit Card Payment: $7.99", frame: { x: 0, y: 20, width: 10, height: 10 } },
+      { text: "Gift Certificate Payment: $5.00", frame: { x: 0, y: 40, width: 10, height: 10 } },
+    ],
+  };
+  const client = {
+    async complete() {
+      return {
+        items: [{ name: "Coffee", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "Coffee $12.99" } }],
+      };
+    },
+  };
+
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.fields.currency, "USD");
+  assert.deepEqual(result.tenders, [
+    {
+      value: 500,
+      source: "parser",
+      evidence: {
+        pageIndex: 0,
+        excerpt: "Gift Certificate Payment: $5.00",
+        box: { x: 0, y: 40, width: 10, height: 10 },
+      },
+      verified: true,
+    },
+  ]);
+  assert.deepEqual(result.arithmetic, {
+    itemSumMinor: 1299,
+    claimedTotalMinor: 799,
+    reconciledTenderMinor: 500,
+    agrees: true,
+  });
+});
+
 test("the parser's own fields are marked as coming from the parser", async () => {
   const client = { async complete() { return { items: [] }; } };
 

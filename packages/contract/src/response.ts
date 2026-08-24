@@ -72,6 +72,9 @@ export interface ExtractionResponse {
     currency: Currency;
   };
   items: ExtractedItem[];
+  /** Explicit additional tender payments, each retained with the same
+   * provenance and verification state as a primary field. */
+  tenders: ExtractedField<number>[];
   arithmetic: ArithmeticCheck;
   /** Field/item paths that failed a guard. Kept, never dropped — see the
    * plan's one failure rule. */

@@ -129,6 +129,9 @@ function collectBoxes(result: ExtractionResponse): BoxEntry[] {
   result.items.forEach((item, index) => {
     if (item.evidence.box) boxes.push({ path: `item[${index}] ${item.name}`, box: item.evidence.box, verified: item.verified });
   });
+  result.tenders.forEach((tender, index) => {
+    if (tender.evidence.box) boxes.push({ path: `tender[${index}]`, box: tender.evidence.box, verified: tender.verified });
+  });
   return boxes;
 }
 
@@ -365,6 +368,14 @@ export default function Page() {
             )}
             {result.items.map((item, index) => (
               <ItemRow key={index} item={item} />
+            ))}
+          </section>
+
+          <section className="tenders">
+            <h2>Additional tenders ({result.tenders.length})</h2>
+            {result.tenders.length === 0 && <p className="hint">No additional tender payment was derived.</p>}
+            {result.tenders.map((tender, index) => (
+              <FieldRow key={index} label="additional tender (minor units)" field={tender} />
             ))}
           </section>
 

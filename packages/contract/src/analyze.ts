@@ -111,7 +111,7 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
   const currency = inferCurrency(rawText, lines, totalEvidence);
 
   const items = extractItems(lines, currency);
-  const tenders = extractTenders(lines);
+  const tenders = extractTenders(lines, currency);
 
   // Deliberate deviation from receipt_analyzer.dart:154/:167, which takes
   // `lines.first` unconditionally with no amount/date filter. Dart's

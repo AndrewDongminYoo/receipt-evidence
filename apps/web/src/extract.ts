@@ -297,16 +297,33 @@ export async function extract(
   );
 
   const items = reply.items.map((item, index) => buildItem(item, index, pages, referenceDate, unverified, disagreements));
+  const tenders = parsed.tenders
+    .map((tender, index) =>
+      resolve(
+        `tenders[${index}]`,
+        {
+          value: tender.amountMinor,
+          source: "parser",
+          pageIndex: pageOfLine(tender.evidence.lineIndex, pages),
+          excerpt: tender.evidence.text,
+        },
+        excerptContainsAmount,
+        pages,
+        unverified,
+      ),
+    )
+    .filter((tender): tender is ExtractedField<number> => tender !== undefined);
 
   const arithmetic = checkArithmetic(
     items,
     paidTotal?.value ?? null,
-    parsed.tenders.map((tender) => tender.amountMinor),
+    tenders.filter((tender) => tender.verified).map((tender) => tender.value),
   );
 
   return {
     fields: { merchant, purchaseDate, paidTotal, reference, currency: parsed.currency },
     items,
+    tenders,
     arithmetic,
     unverified,
     disagreements,

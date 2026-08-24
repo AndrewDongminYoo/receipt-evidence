@@ -24,7 +24,7 @@ import { isTenderPaymentLine } from "./tenders.ts";
 // this system's contract is that a value ships with evidence a reader can
 // check, and a barcode presented as a total is exactly what that exists to
 // prevent. Latin labels are left alone — OCR does not letter-space them.
-export const TOTAL_LABEL = /(^|\s)(total|grand total|결\s*제\s*금\s*액|합\s*계)(\s|:|$)/i;
+export const TOTAL_LABEL = /(^|\s)(total|grand total|(?:credit|debit)\s*card\s*payment|결\s*제\s*금\s*액|합\s*계)(\s|:|$)/i;
 // A row naming a different money figure is never the paid total. The English
 // labels match as whole words, so `TAXI FARE $12.99` is a fare rather than a
 // tax row; the Korean ones match anywhere, because `할인금액` is one word.
