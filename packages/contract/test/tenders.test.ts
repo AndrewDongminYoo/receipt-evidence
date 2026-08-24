@@ -33,6 +33,12 @@ test("extractTenders ignores a tender offer for a future purchase", () => {
   assert.deepEqual(extractTenders(lines, "USD"), []);
 });
 
+test("extractTenders ignores Korean available tender balances", () => {
+  for (const text of ["사용 가능 포인트: 5,000", "쿠폰 사용 가능 금액: 5,000"]) {
+    assert.deepEqual(extractTenders(evidenceLines(text), "KRW"), [], text);
+  }
+});
+
 test("extractTenders keeps a payment amount before its remaining balance", () => {
   for (const [text, currency, amountMinor] of [
     ["상품권 결제금액: 5,000 잔액: 10,000", "KRW", 5000],

@@ -11,7 +11,7 @@ export interface ParsedTender {
 const TENDER_LABEL = /상품\s*권|gift\s*(?:card|certificate)|voucher|쿠폰|coupon|포인트/i;
 const TENDER_BALANCE_LABEL = /\bbalance\b|잔액/i;
 const TENDER_FUTURE_USE_LABEL =
-  /\b(?:next|future)\s+(?:payment|use|purchase|order)\b|\b(?:valid|available)\b.*\b(?:payment|use|purchase|order)\b/i;
+  /\b(?:next|future)\s+(?:payment|use|purchase|order)\b|\b(?:valid|available)\b.*\b(?:payment|use|purchase|order)\b|사용\s*(?:가능|예정)|(?:다음|차후)\s*(?:결제|사용|구매|주문)/i;
 const TENDER_PAYMENT_LABEL = /결제\s*금액|사용\s*금액|결제|사용|차감|\bpayment\b/i;
 const TENDER_MARKED_AMOUNT_G = /(?:[$₩#]\s*|\b(?:KRW|USD)\s*)(\d[\d,]*(?:\.\d{2})?)/gi;
 
