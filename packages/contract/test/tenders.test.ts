@@ -76,6 +76,12 @@ test("extractTenders does not treat a hash-prefixed identifier as its only payme
   assert.deepEqual(extractTenders(evidenceLines("Gift Card Payment #1234"), "USD"), []);
 });
 
+test("extractTenders reads a hash-marked Korean tender amount", () => {
+  const lines = evidenceLines("상품권 결제금액 #5,000");
+
+  assert.deepEqual(extractTenders(lines, "KRW"), [{ amountMinor: 5000, evidence: lines[0] }]);
+});
+
 test("extractTenders reads English tender payments in USD", () => {
   for (const label of ["Gift Card", "Gift Certificate", "Voucher"]) {
     const lines = evidenceLines(`${label} Payment: $5.00`);

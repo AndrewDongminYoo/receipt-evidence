@@ -13,7 +13,7 @@ const TENDER_BALANCE_LABEL = /\bbalance\b|잔액/i;
 const TENDER_FUTURE_USE_LABEL =
   /\b(?:next|future|later)\s+(?:payment|use|purchase|order|visit|redemption|transaction)\b|\b(?:valid|available)\b.*\b(?:payment|use|purchase|order|visit|redemption|transaction)\b|사용\s*(?:가능|예정)|(?:다음|차후)\s*(?:결제|사용|구매|주문)/i;
 const TENDER_PAYMENT_LABEL = /결제\s*금액|사용\s*금액|결제|사용|차감|\bpayment\b/i;
-const TENDER_MARKED_AMOUNT_G = /(?:[$₩]\s*|\b(?:KRW|USD)\s*)(\d[\d,]*(?:\.\d{2})?)/gi;
+const TENDER_MARKED_AMOUNT_G = /(?:[$₩]\s*|\b(?:KRW|USD)\s*|#\s*(?=\d{1,3}(?:,\d{3})+\b))(\d[\d,]*(?:\.\d{2})?)/gi;
 
 /** Whether a line names a non-card tender payment, rather than the tender itself. */
 export function isTenderPaymentLine(text: string): boolean {
