@@ -44,6 +44,12 @@ test("extractTenders keeps a payment amount before its remaining balance", () =>
   }
 });
 
+test("extractTenders prefers a currency-marked payment amount over an identifier", () => {
+  const lines = evidenceLines("Gift Card Payment 1234 $5.00");
+
+  assert.deepEqual(extractTenders(lines, "USD"), [{ amountMinor: 500, evidence: lines[0] }]);
+});
+
 test("extractTenders reads English tender payments in USD", () => {
   for (const label of ["Gift Card", "Gift Certificate", "Voucher"]) {
     const lines = evidenceLines(`${label} Payment: $5.00`);
