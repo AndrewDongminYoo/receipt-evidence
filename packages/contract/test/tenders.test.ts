@@ -33,6 +33,16 @@ test("extractTenders ignores a tender offer for a future purchase", () => {
   assert.deepEqual(extractTenders(lines, "USD"), []);
 });
 
+test("extractTenders ignores a tender reward for a future visit", () => {
+  for (const text of [
+    "Coupon Payment: $5.00 reward for your next visit",
+    "Coupon Payment: $5.00 valid for future redemption",
+    "Coupon Payment: $5.00 for a later transaction",
+  ]) {
+    assert.deepEqual(extractTenders(evidenceLines(text), "USD"), [], text);
+  }
+});
+
 test("extractTenders ignores Korean available tender balances", () => {
   for (const text of ["사용 가능 포인트: 5,000", "쿠폰 사용 가능 금액: 5,000"]) {
     assert.deepEqual(extractTenders(evidenceLines(text), "KRW"), [], text);
