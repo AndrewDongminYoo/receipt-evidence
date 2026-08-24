@@ -13,6 +13,7 @@ import { selectTotal, isAmountOnlyRow } from "./total.ts";
 import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts.ts";
 import { inferCurrency } from "./currency.ts";
 import { extractItems, type ParsedItem } from "./items.ts";
+import { extractTenders, type ParsedTender } from "./tenders.ts";
 
 export interface ParsedField<T> {
   value: T;
@@ -26,6 +27,7 @@ export interface ParsedReceipt {
   currency: Currency;
   reference: ParsedField<string> | null;
   items: ParsedItem[];
+  tenders: ParsedTender[];
   lines: OcrEvidence[];
 }
 
@@ -88,7 +90,7 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
         // succeeded, so this second parse cannot fail.
         { value: parseDate(dateEvidence.text) as Date, evidence: dateEvidence };
 
-  const totalEvidence = selectTotal(lines, PROVISIONAL_CURRENCY);
+  const total = selectTotal(lines, PROVISIONAL_CURRENCY);
 
   const referenceEvidence =
     lines.find((line) => REFERENCE_LABEL.test(line.text) && parseReference(line.text) !== null) ??
@@ -99,16 +101,14 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
       : { value: parseReference(referenceEvidence.text) as string, evidence: referenceEvidence };
 
   const paidTotal: ParsedField<number> | null =
-    totalEvidence === null
+    total === null
       ? largestAmount(lines)
-      : ((): ParsedField<number> | null => {
-          const value = parseAmountMinor(totalEvidence.text, PROVISIONAL_CURRENCY);
-          return value === null ? null : { value, evidence: totalEvidence };
-        })();
+      : { value: total.amountMinor, evidence: total.evidence };
 
-  const currency = inferCurrency(rawText, lines, totalEvidence);
+  const currency = inferCurrency(rawText, lines, total?.evidence ?? null);
 
   const items = extractItems(lines, currency);
+  const tenders = extractTenders(lines, currency);
 
   // Deliberate deviation from receipt_analyzer.dart:154/:167, which takes
   // `lines.first` unconditionally with no amount/date filter. Dart's
@@ -137,5 +137,5 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
   const merchant: ParsedField<string> | null =
     merchantEvidence === null ? null : { value: merchantEvidence.text, evidence: merchantEvidence };
 
-  return { merchant, purchaseDate, paidTotal, currency, reference, items, lines };
+  return { merchant, purchaseDate, paidTotal, currency, reference, items, tenders, lines };
 }

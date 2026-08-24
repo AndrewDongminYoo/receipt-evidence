@@ -82,7 +82,8 @@ Its tests need no network and no device.
       "verified": true
     }
   ],
-  "arithmetic": { "itemSumMinor": 14800, "claimedTotalMinor": 14800, "agrees": true },
+  "tenders": [{ "value": 5000, "source": "parser", "evidence": { "pageIndex": 0, "excerpt": "상품권결제금액: 5,000", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } }, "verified": true }],
+  "arithmetic": { "itemSumMinor": 13000, "claimedTotalMinor": 8000, "reconciledTenderMinor": 5000, "agrees": true },
   "unverified": [],
   "disagreements": []
 }

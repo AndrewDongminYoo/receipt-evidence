@@ -6,13 +6,75 @@ import { isAmountOnlyRow, selectTotal } from "../src/total.ts";
 test("selectTotal ignores discount, subtotal and tax rows", () => {
   const lines = evidenceLines("소계 20,000\n할인금액 -6,600\n합계 14,800\n");
 
-  assert.equal(selectTotal(lines, "KRW")?.text, "합계 14,800");
+  assert.equal(selectTotal(lines, "KRW")?.evidence.text, "합계 14,800");
+});
+
+test("selectTotal ignores a gift-certificate payment that follows the card payment", () => {
+  const lines = evidenceLines("신용카드 결제금액: 4,300원\n상품권 결제금액: 5,000\n");
+
+  assert.equal(selectTotal(lines, "KRW")?.evidence.text, "신용카드 결제금액: 4,300원");
+});
+
+test("selectTotal prefers a Korean total over settlement contributions", () => {
+  const lines = evidenceLines("합계 9,300\n상품권 결제금액: 5,000\n신용카드 결제금액: 4,300원\n");
+
+  assert.equal(selectTotal(lines, "KRW")?.evidence.text, "합계 9,300");
+});
+
+test("selectTotal ignores Korean card approval metadata", () => {
+  const lines = evidenceLines("9,300원\n신용카드 결제금액 승인번호: 1234\n");
+
+  assert.equal(selectTotal(lines, "KRW")?.evidence.text, "9,300원");
+});
+
+test("selectTotal retains a Korean card payment amount before approval metadata", () => {
+  const lines = evidenceLines("신용카드 결제금액: 4,300원 승인번호: 1234\n");
+  const total = selectTotal(lines, "KRW");
+
+  assert.equal(total?.amountMinor, 4300);
+  assert.equal(total?.evidence.text, "신용카드 결제금액: 4,300원 승인번호: 1234");
+});
+
+test("selectTotal ignores card-payment metadata that follows the total", () => {
+  for (const metadata of ["Reference 1234", "Authorization 1234", "Approval Code 1234", "Balance $5.00", "Fee $0.25"]) {
+    const lines = evidenceLines(`TOTAL $12.99\nCredit Card Payment ${metadata}\n`);
+
+    assert.equal(selectTotal(lines, "USD")?.evidence.text, "TOTAL $12.99", metadata);
+  }
+});
+
+test("selectTotal ignores authorization metadata when the total has no label", () => {
+  for (const metadata of ["Authorization 1234", "Approval Code 1234"]) {
+    const lines = evidenceLines(`$10.00\nCredit Card Payment ${metadata}\n`);
+
+    assert.equal(selectTotal(lines, "USD")?.evidence.text, "$10.00", metadata);
+  }
+});
+
+test("selectTotal ignores split card-payment authorization metadata", () => {
+  const lines = evidenceLines("$10.00\nCredit Card Payment Authorization\n$5.00\n");
+
+  assert.equal(selectTotal(lines, "USD")?.evidence.text, "$10.00");
+});
+
+test("selectTotal ignores unsuccessful card-payment attempts", () => {
+  for (const status of ["Declined", "Failed", "Voided", "Reversed"]) {
+    const lines = evidenceLines(`$10.00\nCredit Card Payment ${status} $12.99\n`);
+
+    assert.equal(selectTotal(lines, "USD")?.evidence.text, "$10.00", status);
+  }
+});
+
+test("selectTotal prefers an explicit total over settlement contributions", () => {
+  const lines = evidenceLines("TOTAL $12.99\nGift Card Payment $5.00\nCredit Card Payment $7.99\n");
+
+  assert.equal(selectTotal(lines, "USD")?.evidence.text, "TOTAL $12.99");
 });
 
 test("selectTotal keeps a paid total that also reports an item count", () => {
   const lines = evidenceLines("TOTAL 2 ITEMS $24.95\n");
 
-  assert.equal(selectTotal(lines, "USD")?.text, "TOTAL 2 ITEMS $24.95");
+  assert.equal(selectTotal(lines, "USD")?.evidence.text, "TOTAL 2 ITEMS $24.95");
 });
 
 test("selectTotal rejects a count row carrying no money", () => {
@@ -36,7 +98,7 @@ test("selectTotal yields no evidence for a labelled fare row", () => {
 test("selectTotal pairs a total printed on the following line", () => {
   const lines = evidenceLines("TOTAL\n189,000\n");
 
-  assert.equal(selectTotal(lines, "KRW")?.text, "189,000");
+  assert.equal(selectTotal(lines, "KRW")?.evidence.text, "189,000");
 });
 
 test("selectTotal pairs stacked labels with their column-aligned values", () => {
@@ -47,7 +109,7 @@ test("selectTotal pairs stacked labels with their column-aligned values", () => 
   // the dedicated test Task 5's review flagged as missing.
   const lines = evidenceLines("SUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03\n");
 
-  assert.equal(selectTotal(lines, "USD")?.text, "6.03");
+  assert.equal(selectTotal(lines, "USD")?.evidence.text, "6.03");
 });
 
 test("selectTotal reads a Korean label whose characters are letter-spaced", () => {
@@ -58,8 +120,12 @@ test("selectTotal reads a Korean label whose characters are letter-spaced", () =
   // with a box drawn over it on the photo.
   const lines = evidenceLines("하리보)푸르티부시젤리100\n4001686375754  1  2,500\n부 가 세  227\n합 계  #2,500\n");
 
-  assert.equal(selectTotal(lines, "KRW")?.text, "합 계  #2,500");
-  assert.notEqual(selectTotal(lines, "KRW")?.text, "4001686375754  1  2,500", "never the barcode row");
+  assert.equal(selectTotal(lines, "KRW")?.evidence.text, "합 계  #2,500");
+  assert.notEqual(
+    selectTotal(lines, "KRW")?.evidence.text,
+    "4001686375754  1  2,500",
+    "never the barcode row",
+  );
 });
 
 test("a letter-spaced VAT row is still excluded from the total", () => {
@@ -77,7 +143,7 @@ test("a currency glyph decides the total when OCR scrambled the label order", ()
   // its evidence.
   const lines = evidenceLines("과세물품가액\n1,818\n합계\n부  가  세\n182\n#2,000\n");
 
-  assert.equal(selectTotal(lines, "KRW")?.text, "#2,000");
+  assert.equal(selectTotal(lines, "KRW")?.evidence.text, "#2,000");
 });
 
 test("# before a digit is the won glyph a printer without ₩ uses", () => {
@@ -93,5 +159,5 @@ test("the split-total lookahead stops at a label that claims the next value", ()
   // no value run to pair, just a label and one value after it.
   const lines = evidenceLines("합계\n부  가  세\n182\n");
 
-  assert.notEqual(selectTotal(lines, "KRW")?.text, "182", "never the figure the other label named");
+  assert.notEqual(selectTotal(lines, "KRW")?.evidence.text, "182", "never the figure the other label named");
 });

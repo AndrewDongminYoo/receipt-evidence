@@ -7,6 +7,7 @@
 import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
 import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts.ts";
+import { isTenderPaymentLine } from "./tenders.ts";
 
 // Exported: currency.ts (Task 6) ports `_splitLabelCurrency`, which tests
 // this same label against the rows above a split total. Dart holds one copy
@@ -23,7 +24,10 @@ import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts
 // this system's contract is that a value ships with evidence a reader can
 // check, and a barcode presented as a total is exactly what that exists to
 // prevent. Latin labels are left alone — OCR does not letter-space them.
-export const TOTAL_LABEL = /(^|\s)(total|grand total|결\s*제\s*금\s*액|합\s*계)(\s|:|$)/i;
+export const TOTAL_LABEL = /(^|\s)(total|grand total|(?:credit|debit)\s*card\s*payment|결\s*제\s*금\s*액|합\s*계)(\s|:|$)/i;
+const CARD_PAYMENT_TOTAL_LABEL = /(?:credit|debit)\s*card\s*payment|신용\s*카드\s*결\s*제\s*금\s*액/i;
+const CARD_PAYMENT_FAILURE_LABEL = /\b(declined|failed|voided|reversed)\b/i;
+const CARD_PAYMENT_NON_PAYMENT_LABEL = /\b(reference|authorization|approval|auth|balance|fee)\b|승인\s*번호/i;
 // A row naming a different money figure is never the paid total. The English
 // labels match as whole words, so `TAXI FARE $12.99` is a fare rather than a
 // tax row; the Korean ones match anywhere, because `할인금액` is one word.
@@ -167,11 +171,22 @@ function labeledAmount(line: string, currency: Currency): number | null {
   return parseAmountMinor(line.slice(match.index + match[0].length), currency);
 }
 
+/** A card-payment row can carry the payment amount followed by an approval identifier.
+ * The identifier is metadata, not the amount, so retain the original evidence while parsing only the payment segment before it.
+ */
+function cardPaymentAmount(line: string, currency: Currency, splitAmount: number | null): number | null {
+  if (CARD_PAYMENT_FAILURE_LABEL.test(line)) return null;
+  const metadata = CARD_PAYMENT_NON_PAYMENT_LABEL.exec(line);
+  if (metadata !== null) return labeledAmount(line.slice(0, metadata.index), currency);
+  return labeledAmount(line, currency) ?? splitAmount;
+}
+
 /** Whether `line` reports something other than the paid total.
  *
  * A count only disqualifies a row that carries no money: a receipt may
  * summarise its purchase as `TOTAL 2 ITEMS $24.95`. */
 function namesAnotherFigure(line: string): boolean {
+  if (isTenderPaymentLine(line)) return true;
   if (OTHER_AMOUNT_LABEL.test(line)) return true;
   if (!COUNT_LABEL.test(line)) return false;
   return !WON_MARKER.test(line) && !DOLLAR_MARKER.test(line);
@@ -181,39 +196,54 @@ function namesAnotherFigure(line: string): boolean {
  * currency-marked amount and nothing else. Requiring the whole row keeps
  * `SUBTOTAL $20.00`, `TENDER $20.00`, and `TAX $1.05` out without having to
  * enumerate every label a receipt might print beside an amount. */
-function currencyMarkedEvidence(lines: OcrEvidence[], currency: Currency): OcrEvidence | null {
-  let marked: OcrEvidence | null = null;
+function currencyMarkedEvidence(lines: OcrEvidence[], currency: Currency): SelectedTotal | null {
+  let marked: SelectedTotal | null = null;
   let largest = 0;
   for (const line of lines) {
     if (!CURRENCY_SYMBOL.test(line.text) || !isAmountOnlyRow(line.text)) continue;
     const amount = parseAmountMinor(line.text, currency);
     if (amount === null || amount <= largest) continue;
     largest = amount;
-    marked = line;
+    marked = { amountMinor: amount, evidence: line };
   }
   return marked;
+}
+
+/** The selected amount and its unchanged OCR source line. */
+export interface SelectedTotal {
+  amountMinor: number;
+  evidence: OcrEvidence;
 }
 
 /** Selects the line carrying the paid total.
  *
  * Real receipts print the label and its value either on one line or in two
  * columns that OCR flattens into consecutive lines, so a label without a
- * value falls through to the following line. The returned evidence is always
- * the line the value came from. Receipts whose total survives only as a
- * currency-marked amount fall back to that line.
+ * value falls through to the following line. The returned evidence is always the unchanged line the value came from.
+ * Receipts whose total survives only as a currency-marked amount fall back to that line.
  *
  * `currency` is provisional here — total selection runs before currency
  * inference (Task 6), so this must not depend on a final currency decision.
  * It is threaded through only to satisfy parseAmountMinor's signature. */
-export function selectTotal(lines: OcrEvidence[], currency: Currency): OcrEvidence | null {
+export function selectTotal(lines: OcrEvidence[], currency: Currency): SelectedTotal | null {
+  let cardPayment: SelectedTotal | null = null;
   for (let index = lines.length - 1; index >= 0; index--) {
     const line = lines[index];
     if (!TOTAL_LABEL.test(line.text) || namesAnotherFigure(line.text)) {
       continue;
     }
-    if (labeledAmount(line.text, currency) !== null) return line;
-    const value = splitTotalValueAfter(lines, index, currency);
-    if (value !== null) return value;
+    const labelledAmount = labeledAmount(line.text, currency);
+    const value = labelledAmount !== null ? line : splitTotalValueAfter(lines, index, currency);
+    if (value === null) continue;
+    const amountMinor = labelledAmount ?? parseAmountMinor(value.text, currency);
+    if (amountMinor === null) continue;
+    if (CARD_PAYMENT_TOTAL_LABEL.test(line.text)) {
+      const paymentAmount = cardPaymentAmount(line.text, currency, labelledAmount === null ? amountMinor : null);
+      if (paymentAmount === null) continue;
+      cardPayment ??= { amountMinor: paymentAmount, evidence: value };
+      continue;
+    }
+    return { amountMinor, evidence: value };
   }
-  return currencyMarkedEvidence(lines, currency);
+  return cardPayment ?? currencyMarkedEvidence(lines, currency);
 }

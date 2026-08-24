@@ -60,6 +60,7 @@ function boxesOf(result: ExtractionResponse, pageIndex: number, wanted: boolean)
         typeof field === "object" && field !== null,
     ),
     ...result.items,
+    ...result.tenders,
   ];
   return entries
     .filter(
@@ -157,7 +158,7 @@ export default function App() {
 }
 
 function Result({ image, result }: { image: ReceiptImage; result: ExtractionResponse }) {
-  const { fields, items, arithmetic, unverified, disagreements, modelReply } = result;
+  const { fields, items, tenders, arithmetic, unverified, disagreements, modelReply } = result;
   return (
     <View style={styles.result}>
       {image.ocrLines === undefined ? (
@@ -189,6 +190,12 @@ function Result({ image, result }: { image: ReceiptImage; result: ExtractionResp
         </View>
       ))}
 
+      <Text style={styles.heading}>Additional tenders</Text>
+      {tenders.length === 0 && <Text style={styles.muted}>none reported</Text>}
+      {tenders.map((tender, index) => (
+        <FieldRow key={index} label="Additional tender" field={tender} />
+      ))}
+
       <Text style={styles.heading}>Checks</Text>
       <Text style={styles.muted}>
         {/* `agrees: null` is a third state — nothing to compare — and is shown
@@ -197,7 +204,9 @@ function Result({ image, result }: { image: ReceiptImage; result: ExtractionResp
         {arithmetic.agrees === null
           ? "not computable (no items or no total)"
           : arithmetic.agrees
-            ? `items sum to the total (${arithmetic.itemSumMinor})`
+            ? arithmetic.reconciledTenderMinor === null
+              ? `items sum to the total (${arithmetic.itemSumMinor})`
+              : `items sum to ${arithmetic.itemSumMinor}; total ${arithmetic.claimedTotalMinor} plus other tender ${arithmetic.reconciledTenderMinor}`
             : `items sum to ${arithmetic.itemSumMinor}, total says ${arithmetic.claimedTotalMinor}`}
       </Text>
       {unverified.length > 0 && <Text style={styles.failed}>Unverified: {unverified.join(", ")}</Text>}

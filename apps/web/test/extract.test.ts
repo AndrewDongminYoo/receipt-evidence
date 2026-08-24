@@ -51,6 +51,122 @@ test("a fabricated model item survives as unverified, never as fact", async () =
   assert.equal(result.arithmetic.agrees, false);
 });
 
+test("an explicit Korean total takes precedence over settlement contributions", async () => {
+  const page = {
+    text:
+      "GS25\n말차마카다쿠키 2,400\n행운한입쑥찰떡 4,000\n5개) 아카페 2,900\n합계 9,300\n상품권결제금액: 5,000\n신용카드 결제금액: 4,300원\n",
+    lines: [],
+  };
+  const client = {
+    async complete() {
+      return {
+        items: [
+          { name: "말차마카다쿠키", amountMinor: 2400, evidence: { pageIndex: 0, excerpt: "말차마카다쿠키 2,400" } },
+          { name: "행운한입쑥찰떡", amountMinor: 4000, evidence: { pageIndex: 0, excerpt: "행운한입쑥찰떡 4,000" } },
+          { name: "5개) 아카페", amountMinor: 2900, evidence: { pageIndex: 0, excerpt: "5개) 아카페 2,900" } },
+        ],
+      };
+    },
+  };
+
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.deepEqual(result.arithmetic, {
+    itemSumMinor: 9300,
+    claimedTotalMinor: 9300,
+    reconciledTenderMinor: null,
+    agrees: true,
+  });
+});
+
+test("an English USD tender is evidenced before it reconciles a card payment", async () => {
+  const page = {
+    text: "COFFEE SHOP\nCoffee $12.99\nCredit Card Payment: $7.99\nGift Certificate Payment 1234 $5.00\n",
+    lines: [
+      { text: "Coffee $12.99", frame: { x: 0, y: 0, width: 10, height: 10 } },
+      { text: "Credit Card Payment: $7.99", frame: { x: 0, y: 20, width: 10, height: 10 } },
+      { text: "Gift Certificate Payment 1234 $5.00", frame: { x: 0, y: 40, width: 10, height: 10 } },
+    ],
+  };
+  const client = {
+    async complete() {
+      return {
+        items: [{ name: "Coffee", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "Coffee $12.99" } }],
+      };
+    },
+  };
+
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.fields.currency, "USD");
+  assert.deepEqual(result.tenders, [
+    {
+      value: 500,
+      source: "parser",
+      evidence: {
+        pageIndex: 0,
+        excerpt: "Gift Certificate Payment 1234 $5.00",
+        box: { x: 0, y: 40, width: 10, height: 10 },
+      },
+      verified: true,
+    },
+  ]);
+  assert.deepEqual(result.arithmetic, {
+    itemSumMinor: 1299,
+    claimedTotalMinor: 799,
+    reconciledTenderMinor: 500,
+    agrees: true,
+  });
+});
+
+test("a future tender offer cannot reconcile a card payment", async () => {
+  const page = {
+    text: "COFFEE SHOP\nCoffee $12.99\nCredit Card Payment: $7.99\nCoupon Payment: $5.00 on your next purchase\n",
+    lines: [],
+  };
+  const client = {
+    async complete() {
+      return {
+        items: [{ name: "Coffee", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "Coffee $12.99" } }],
+      };
+    },
+  };
+
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.deepEqual(result.tenders, []);
+  assert.deepEqual(result.arithmetic, {
+    itemSumMinor: 1299,
+    claimedTotalMinor: 799,
+    reconciledTenderMinor: null,
+    agrees: false,
+  });
+});
+
+test("a hash-prefixed tender identifier cannot reconcile a card payment", async () => {
+  const page = {
+    text: "COFFEE SHOP\nCoffee $12.99\nCredit Card Payment: $7.99\nGift Certificate Payment #500\n",
+    lines: [],
+  };
+  const client = {
+    async complete() {
+      return {
+        items: [{ name: "Coffee", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "Coffee $12.99" } }],
+      };
+    },
+  };
+
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.deepEqual(result.tenders, []);
+  assert.deepEqual(result.arithmetic, {
+    itemSumMinor: 1299,
+    claimedTotalMinor: 799,
+    reconciledTenderMinor: null,
+    agrees: false,
+  });
+});
+
 test("the parser's own fields are marked as coming from the parser", async () => {
   const client = { async complete() { return { items: [] }; } };
 
