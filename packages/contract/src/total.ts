@@ -25,6 +25,8 @@ import { isTenderPaymentLine } from "./tenders.ts";
 // check, and a barcode presented as a total is exactly what that exists to
 // prevent. Latin labels are left alone — OCR does not letter-space them.
 export const TOTAL_LABEL = /(^|\s)(total|grand total|(?:credit|debit)\s*card\s*payment|결\s*제\s*금\s*액|합\s*계)(\s|:|$)/i;
+const CARD_PAYMENT_TOTAL_LABEL = /(?:credit|debit)\s*card\s*payment/i;
+const CARD_PAYMENT_METADATA_LABEL = /\b(reference|balance|fee)\b/i;
 // A row naming a different money figure is never the paid total. The English
 // labels match as whole words, so `TAXI FARE $12.99` is a fare rather than a
 // tax row; the Korean ones match anywhere, because `할인금액` is one word.
@@ -179,6 +181,10 @@ function namesAnotherFigure(line: string): boolean {
   return !WON_MARKER.test(line) && !DOLLAR_MARKER.test(line);
 }
 
+function isCardPaymentMetadata(line: string): boolean {
+  return CARD_PAYMENT_TOTAL_LABEL.test(line) && CARD_PAYMENT_METADATA_LABEL.test(line);
+}
+
 /** The last resort for a receipt with no total label: a row that is a
  * currency-marked amount and nothing else. Requiring the whole row keeps
  * `SUBTOTAL $20.00`, `TENDER $20.00`, and `TAX $1.05` out without having to
@@ -210,7 +216,7 @@ function currencyMarkedEvidence(lines: OcrEvidence[], currency: Currency): OcrEv
 export function selectTotal(lines: OcrEvidence[], currency: Currency): OcrEvidence | null {
   for (let index = lines.length - 1; index >= 0; index--) {
     const line = lines[index];
-    if (!TOTAL_LABEL.test(line.text) || namesAnotherFigure(line.text)) {
+    if (!TOTAL_LABEL.test(line.text) || namesAnotherFigure(line.text) || isCardPaymentMetadata(line.text)) {
       continue;
     }
     if (labeledAmount(line.text, currency) !== null) return line;

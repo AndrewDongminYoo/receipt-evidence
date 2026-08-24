@@ -15,6 +15,14 @@ test("selectTotal ignores a gift-certificate payment that follows the card payme
   assert.equal(selectTotal(lines, "KRW")?.text, "신용카드 결제금액: 4,300원");
 });
 
+test("selectTotal ignores card-payment metadata that follows the total", () => {
+  for (const metadata of ["Reference 1234", "Balance $5.00", "Fee $0.25"]) {
+    const lines = evidenceLines(`TOTAL $12.99\nCredit Card Payment ${metadata}\n`);
+
+    assert.equal(selectTotal(lines, "USD")?.text, "TOTAL $12.99", metadata);
+  }
+});
+
 test("selectTotal keeps a paid total that also reports an item count", () => {
   const lines = evidenceLines("TOTAL 2 ITEMS $24.95\n");
 
