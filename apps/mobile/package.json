@@ -2,6 +2,7 @@
   "name": "@receipt-evidence/mobile",
   "private": true,
   "version": "0.0.1",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "expo start --dev-client",
