@@ -74,5 +74,5 @@ Closed by a dedicated unit test in `packages/contract/test/total.test.ts` (`"sel
 
 ## Reproduction
 
-Run `pnpm test` (55 tests, 55 pass, 0 fail, 0 todo) for the pass/fail assertions.
+Run `pnpm test` for the pass/fail assertions. The test count is intentionally not copied here because the suite covers more than this corpus and changes independently.
 Run `node scripts/measure-corpus.mjs` to re-derive the per-field counts above: it loads `analyze()` from `packages/contract/src/analyze.ts`, runs it over all 12 fixtures, and tallies non-null/matching values per field against `packages/contract/test/fixtures/receipts/expected.json`'s `ocrDerived` block, plus the full list of receipts where a value was returned against a `derivable: false` fact.

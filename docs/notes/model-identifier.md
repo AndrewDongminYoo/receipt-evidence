@@ -8,16 +8,13 @@ documentation, not from memory, and the extraction endpoint must use it verbatim
 - **Source URL:** <https://developers.openai.com/api/docs/models> (canonical docs URL
   `https://platform.openai.com/docs/models` 301-redirects here)
 
-## What the source says
+## What the source said on 2026-08-19
 
-- `gpt-5.6-sol` is OpenAI's current flagship general-purpose model: "If you're not sure
-  where to start, use GPT-5.6 Sol, our flagship model for complex reasoning and coding."
+- `gpt-5.6-sol` was OpenAI's flagship general-purpose model when this source was read: "If you're not sure where to start, use GPT-5.6 Sol, our flagship model for complex reasoning and coding."
 - It is called through the Responses API (`client.responses.create`), supports text and
   image input with text output, and supports structured outputs (JSON Schema) and tool
   use — the capabilities this project's extraction endpoint needs.
-- Sibling variants exist at the same doc URL (`gpt-5.6-terra`, cost/intelligence
-  balanced; `gpt-5.6-luna`, cost-optimized) but `gpt-5.6-sol` is the one the docs name
-  as the default starting point, so it is the one this project uses.
+- Sibling variants existed at the same doc URL (`gpt-5.6-terra`, cost/intelligence balanced; `gpt-5.6-luna`, cost-optimized), and the docs named `gpt-5.6-sol` as the default starting point. That is why this project uses it. Reconfirm the identifier against the linked documentation before changing the model.
 
 ## Structured outputs constraint found while implementing Task 14
 

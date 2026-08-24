@@ -6,14 +6,21 @@
 
 **Architecture:** One pnpm workspace. `packages/contract` owns the parser, the guards, the schema, and the types, and its tests run without network or device. `apps/web` exposes `/api/extract` plus a demo page; `apps/mobile` captures through `react-native-receipt-scanner` and draws evidence boxes over the receipt.
 
-**Tech Stack:** TypeScript, Node's built-in test runner (`node --test`, native type stripping — no test framework dependency), pnpm workspaces, zod 4.4.3 for the one schema definition, openai 7.5.0, Next.js 16.3.1 + React 19.2.8, Expo 57.0.14 + React Native 0.86.2 + React 19.2.3, `react-native-receipt-scanner` 0.8.0.
+**Tech Stack:** TypeScript 6.0.3, Node's built-in test runner (`node --test`, native type stripping — no test framework dependency), pnpm 11.22.0 workspaces, zod 4.4.3 for the one schema definition, openai 7.5.0, Next.js 16.3.1 + React 19.2.8, Expo 57.0.15 + React Native 0.86.2 + React 19.2.3, and `react-native-receipt-scanner` 0.8.0.
 
 **Spec:** `docs/specs/2026-08-19-receipt-evidence-design.md`
 
+## Reconciled Status
+
+This plan retains the original task-by-task implementation record, including its unchecked historical process steps.
+The current code implements Tasks 1–14b, the Task 15 page, the Task 16 source, and the Task 17 README and CI workflow.
+The remaining acceptance work is a manual web pass, a real-iPhone camera and gallery pass, and a hosted demo link.
+The first two are unverified in repository evidence, and no hosted demo is currently linked or configured.
+
 ## Global Constraints
 
-- **Versions** verified against the npm registry on 2026-08-19: `expo@57.0.14`, `next@16.3.1`, `react@19.2.8`, `openai@7.5.0`, `zod@4.4.3`. Pin these; do not float.
-- **The mobile pins are Expo's, not npm's `latest`** (corrected 2026-08-22 at Task 16). This line originally read `react-native@0.87.0`, which is what npm ships as `latest` — but `expo@57.0.14`'s own `bundledNativeModules.json` names `react-native` `0.86.2` and `react` `19.2.3`, and Expo's prebuild and autolinking are coupled to that pair. The app uses Expo's versions; the web app keeps `react@19.2.8` for Next 16.3.1, which pnpm resolves per workspace package. `expo` and `expo-file-system` were then raised again to `57.0.15`/`57.0.5` by `expo run:ios` on 2026-08-23 — the CLI aligns the manifest during prebuild — and those are the versions the first successful native build used.
+- **Versions** reconciled against the manifests on 2026-08-24: `expo@57.0.15`, `expo-file-system@57.0.5`, `next@16.3.1`, web `react@19.2.8`, mobile `react@19.2.3`, `react-native@0.86.2`, `openai@7.5.0`, `zod@4.4.3`, `typescript@6.0.3`, and `pnpm@11.22.0`. Pin these; do not float.
+- **The mobile pins are Expo's, not npm's `latest`.** Expo's prebuild and autolinking are coupled to its `react-native` and `react` pair, so the mobile workspace keeps `react-native@0.86.2` and `react@19.2.3`. The web workspace keeps `react@19.2.8` for Next 16.3.1, which pnpm resolves per workspace package. The `expo@57.0.15` and `expo-file-system@57.0.5` pins are the ones currently declared in the mobile manifest.
 - **No test framework.** Tests are `node --test` over `*.test.ts`. Node strips TypeScript types natively. Adding vitest or jest to `packages/contract` is a plan violation.
 - **The OpenAI model identifier is never written from memory.** Task 14 begins by reading OpenAI's current model documentation and recording the identifier in the plan's own notes file. A model id that appears in code without that step is a defect.
 - **One failure rule, everywhere:** a value that fails any check is kept, marked `verified: false`, and listed under `unverified`. Never silently dropped, never presented as fact.
@@ -1174,7 +1181,7 @@ git commit -m "feat(contract): ✨ define the model reply schema once, in zod"
 
 **Interfaces:**
 - Consumes: `analyze`, `verifyEvidence`, `excerptContainsAmount`, `excerptContainsText`, `checkArithmetic`, `anchorToLines`, `ModelReplySchema`.
-- Produces: `POST /api/extract` taking `{ pages: [{ text, lines, imageBase64? }] }` and returning the `ExtractionResponse` from the spec. `ModelClient` is an interface with one method, so tests substitute a fake and never call OpenAI.
+- Produces: `POST /api/extract` taking `{ pages: [{ text, lines, imageDataUrl? }] }` and returning the `ExtractionResponse` from the spec. `ModelClient` is an interface with one method, so tests substitute a fake and never call OpenAI.
 
 - [ ] **Step 1: Record the model identifier from official documentation**
 
@@ -1273,12 +1280,12 @@ git commit -m "feat(web): ✨ extract a receipt through the parser, the model, a
 - Test: `apps/web/test/model-client.test.ts`
 
 **Interfaces:**
-- Consumes: `Page.imageBase64` — already declared and already sent by the demo page.
+- Consumes: `Page.imageDataUrl` — already declared and sent when the caller opts into image fallback.
 - Produces: a request that carries the page's image when one is present, and does not when it is not.
 
-Added after Task 15 found that `imageBase64` was declared, populated by the caller, and read by nothing. The spec's pipeline has the app attach a JPEG only for a page below the OCR floor; the client must therefore transmit it when present. Without this the floor decision is decoration and the spec describes a path the code does not have.
+Added after Task 15 found that `imageDataUrl` was declared, populated by the caller, and read by nothing. The spec's pipeline has the app attach a JPEG only for a page below the OCR floor; the client must therefore transmit it when present. Without this the floor decision is decoration and the spec describes a path the code does not have.
 
-The test uses a fake client and asserts both directions: a page carrying `imageBase64` produces a request containing the image, and a page without one produces a request that does not. Assert on what the client sends, not on what a model replies — no test in this repository makes a network call.
+The test uses a fake client and asserts both directions: a page carrying `imageDataUrl` produces a request containing the image, and a page without one produces a request that does not. Assert on what the client sends, not on what a model replies — no test in this repository makes a network call.
 
 ---
 
@@ -1291,11 +1298,11 @@ The test uses a fake client and asserts both directions: a page carrying `imageB
 - Consumes: `POST /api/extract`.
 - Produces: the page a reviewer opens without building anything.
 
-It accepts a receipt image, runs OCR-free (the page has no scanner — it posts the image and lets the server's image path handle it), and renders fields, items, evidence boxes over the image, unverified values marked, and the arithmetic verdict shown whether it agrees or not.
+It accepts pasted OCR text and an optional receipt image. The page performs no OCR, and it sends the image only after explicit opt-in as a model fallback. A reviewer can also supply OCR-line JSON with frames in the image's pixel space; without that geometry, fields and items still render but evidence cannot be boxed over the image.
 
 - [ ] **Step 1: Build the page and verify it by hand**
 
-There is no automated test for this page; its job is to be looked at. Run `pnpm --filter web dev`, upload `packages/contract/test/fixtures/receipts/kr_01.txt`'s source image if available or any receipt photo, and confirm: fields render, at least one evidence box lands on the right line, an unverified value is visibly marked, and a mismatch shows as a mismatch.
+There is no automated test for this page; its job is to be looked at. Run `pnpm --filter web dev`, paste a fixture's OCR text, and confirm that fields render and that an unverified value and a mismatch are visibly marked. To check an evidence box, also upload the matching receipt image and supply its OCR-line JSON with frames; the page itself does not create that geometry.
 
 - [ ] **Step 2: Commit**
 
@@ -1358,7 +1365,7 @@ git commit -m "feat(mobile): ✨ scan a receipt and show its evidence on the ima
 
 - [ ] **Step 1: Write the README around the measured baseline**
 
-Lead with the number from `docs/notes/corpus-baseline.md`: the deterministic parser derives currency on 12/12 and items on 0/12, which is why the model is here. Then quick start (under ten minutes), the Expo Go caveat, and what the guards do. Link the live demo.
+Lead with the number from `docs/notes/corpus-baseline.md`: the deterministic parser derives currency on 12/12, returns no correct items, and returns spurious items on 3/12 receipts, which is why the model is here. Then quick start (under ten minutes), the Expo Go caveat, and what the guards do. Add a live-demo link only after a demo is deployed; no hosted demo is currently configured.
 
 - [ ] **Step 2: Add CI**
 

@@ -22,7 +22,7 @@ This one answers two questions the usual demo leaves open.
 
 ## Scope
 
-**In:** camera and gallery capture on iOS and Android, on-device OCR, deterministic extraction, an LLM pass for what the parser cannot derive, evidence verification, arithmetic re-checking, and one page each (mobile, web) that shows the result with its evidence highlighted on the image.
+**In:** camera and gallery capture on iOS and Android, on-device OCR, deterministic extraction, an LLM pass for what the parser cannot derive, evidence verification, arithmetic re-checking, a mobile result surface with image evidence, and a web demo that draws image evidence when OCR-line geometry is supplied.
 
 **Out:** persistence, accounts, authentication, multi-user, expense categorisation, receipt storage, and anything that outlives a single request.
 The server holds nothing after it answers.
@@ -46,15 +46,15 @@ Its tests need no network and no device.
 
 1. **Capture (app).** `scan()` returns `ReceiptImage { uri, width, height, ocrText, ocrLines[{ text, frame }], ocrQuality }`.
    `ocrLines` carries a bounding box per line, which is what makes evidence visible rather than merely quotable.
-2. **Floor decision (app).** The app applies the scanner's own OCR floor.
+2. **Floor decision (app).** The app keeps every scanner page, then evaluates its `ocrQuality` against `DEFAULT_OCR_FLOOR` itself.
    Pages that clear it are sent as text; only a page below the floor also uploads its JPEG.
    One round trip, and the image leaves the device only when the text cannot carry the work.
 3. **Deterministic pass (server).** The parser extracts merchant, date, total, currency, and reference from the OCR text, each with the line it came from.
 4. **Model pass (server).** The model is asked only for what the parser did not derive — always the line items, plus whichever header fields came back empty.
    The JSON schema makes `evidence: { pageIndex, excerpt }` required on every value; a response without it is invalid, not merely suspect.
 5. **Verification (server, deterministic).**
-   - The excerpt must occur in that page's OCR text, compared after NFKC normalisation, within a run of at most three ADJACENT lines.
-     One line was the original rule, and the first device capture broke it: a Korean receipt prints an item's name, barcode and price on separate lines, so a correct model reading was rejected for quoting all three. The cap and the adjacency requirement are what keep the relaxation from letting a model quote the page whole.
+   - The excerpt must occur in that page's OCR text, compared after NFKC normalisation, within a run of at most four ADJACENT lines.
+     One line was the original rule, and real captures broke it: a Korean receipt can print an item's name, barcode, quantity, and price on separate lines. The cap and the adjacency requirement are what keep the relaxation from letting a model quote the page whole.
    - The value must occur inside the excerpt, and how that is asked depends on the value's type: an amount against the line's amounts read the parser's own way (`excerptContainsAmount`), a string as a normalised substring (`excerptContainsText`), a date by re-parsing the cited line and comparing the calendar day.
      This was originally specified as one ported rule, `excerptContainsValue` from catfood-feeder. That port was removed on 2026-08-22 (see `packages/contract/src/guards.ts` for the two measured failures): it compared minor units against the printed decimal, so every honest USD amount failed, and it demanded exactly one numeric token, which no ordinary receipt row satisfies.
      Strings and dates, meanwhile, had never been checked at all — a fabricated merchant quoting any real line was published as `verified: true`.
@@ -65,7 +65,7 @@ Its tests need no network and no device.
    It is never silently dropped and never presented as fact.
    Dropping it would hide the interesting half of the demo; presenting it would be the exact failure this project exists to prevent.
 6. **Anchoring (server).** Each surviving excerpt is matched back to `ocrLines` to recover its bounding box.
-7. **Presentation (app and web).** The receipt renders with a box drawn over the evidence for each field, unverified values marked, and any arithmetic mismatch shown as a mismatch rather than silently corrected.
+7. **Presentation (app and web).** The mobile app receives `ocrLines` from its scanner and draws a box over each anchored field. The web demo accepts separately supplied OCR-line geometry and draws boxes only when that geometry is present. Both surfaces mark unverified values and show arithmetic mismatches rather than silently correcting them.
 
 ### Response shape
 
