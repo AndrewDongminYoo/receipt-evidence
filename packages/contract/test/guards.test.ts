@@ -97,8 +97,21 @@ test("verifyEvidence refuses a run longer than the cap, so a page cannot be quot
   // longer coat.
   const page = "GS25\n2026-07-02\n커피 4,500\n합계 4,500\n";
 
-  assert.equal(verifyEvidence("GS25\n2026-07-02\n커피 4,500", page), true, "three lines is the cap");
-  assert.equal(verifyEvidence("GS25\n2026-07-02\n커피 4,500\n합계 4,500", page), false, "four is past it");
+  assert.equal(verifyEvidence("GS25\n2026-07-02\n커피 4,500\n합계 4,500", page), true, "four lines is the cap");
+  assert.equal(
+    verifyEvidence("GS25\n2026-07-02\n커피 4,500\n합계 4,500\n감사합니다", `${page}감사합니다\n`),
+    false,
+    "five is past it",
+  );
+});
+
+test("verifyEvidence accepts the four-line item shape a real receipt printed", () => {
+  // The second device capture: OCR split the quantity onto its own line, so
+  // the item ran name / barcode / quantity / amount. At a cap of three a
+  // correct model reading was rejected.
+  const page = "7-ELEVEN\n해태)홈런볼피스타치오카\n8801019320293\n1\n2,000\n합계 #2,000\n";
+
+  assert.equal(verifyEvidence("해태)홈런볼피스타치오카\n8801019320293\n1\n2,000", page), true);
 });
 
 test("a real excerpt carrying a value it never states is rejected", () => {

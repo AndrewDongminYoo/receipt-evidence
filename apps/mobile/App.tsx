@@ -94,6 +94,17 @@ export default function App() {
 
       setStatus({ kind: "working", step: "extracting" });
       const pages = await Promise.all(scanned.images.map(toPage));
+      // The OCR text is the pipeline's actual input, and every defect found on
+      // a real receipt so far has turned on its exact line structure — where
+      // the printer spaced a label, whether OCR kept `barcode 1 2,000` on one
+      // line or split it into three. Without it a capture can only be argued
+      // about from a screenshot. Dev builds only, because it is the receipt's
+      // contents.
+      if (__DEV__) {
+        for (const [index, page] of pages.entries()) {
+          console.log(`[receipt-evidence] page ${index} ocrText:\n${page.text}`);
+        }
+      }
       const response = await fetch(`${API_URL}/api/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

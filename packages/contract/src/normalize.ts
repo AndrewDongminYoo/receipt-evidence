@@ -30,13 +30,20 @@ export function normalize(value: string): string {
  *
  * The cap is what keeps the relaxation honest. Without one, a model could
  * quote the entire page as its "excerpt" and every value in it would verify —
- * the empty-excerpt failure wearing a longer coat. Three is the longest run
- * observed on a real receipt (name / barcode+quantity / price); a value whose
- * evidence needs more than that is reported unverified, kept and marked.
+ * the empty-excerpt failure wearing a longer coat. It is a bound on quoting
+ * the page whole, not an attempt to be tight: a receipt runs to dozens of
+ * lines, so four is still nowhere near it.
+ *
+ * Four is what real captures needed. The first (a 7-Eleven jelly receipt)
+ * ran to three, because OCR kept `barcode 1 2,500` on one line. The second,
+ * the same store, split the quantity onto its own: name / `8801019320293` /
+ * `1` / `2,000` — four, and at a cap of three a correct model reading was
+ * rejected again. Raised against that capture, which is exactly the evidence
+ * the previous note asked for before raising it.
  *
  * ponytail: fixed cap, raise it only against a real capture that needs more.
  */
-export const MAX_EVIDENCE_LINES = 3;
+export const MAX_EVIDENCE_LINES = 4;
 
 /**
  * Every contiguous run of lines whose text contains `excerpt`.
