@@ -192,28 +192,39 @@ function buildItem(
   disagreements: Disagreement[],
 ): ExtractedItem {
   const path = `items[${index}]`;
-  const { pageIndex, excerpt } = item.evidence;
-  const text = pageText(pages, pageIndex);
-  // Every part of the item has to be stated on the cited line, not just the
+  const { nameEvidence, amountEvidence } = item;
+  const nameText = pageText(pages, nameEvidence.pageIndex);
+  const amountText = pageText(pages, amountEvidence.pageIndex);
+  // Every part of the item has to be stated where it is cited, not just the
   // money. Checking the amount alone let a model quote a real priced row and
   // attach whatever name and quantity it liked — `{name: "Whisky", quantity:
   // 99, amountMinor: 4500}` citing `커피 4,500` verified, and both clients
-  // then showed the invented name under a verified badge. A quantity is
+  // then showed the invented name under a verified badge. The evidence is
+  // split in two (issue #3) because OCR can flatten an item table into
+  // columns, putting the name and the amount many lines apart — but the
+  // split removes only the adjacency requirement BETWEEN the parts: the name
+  // still has to be stated on ITS line and the amount on ITS. A quantity is
   // optional in the schema precisely so the model omits what it cannot read;
-  // one it does supply is a claim like any other and is checked as one.
+  // one it does supply is a claim like any other, checked against the two
+  // lines the item cites — a flattened receipt's quantity column is a third
+  // location, and a count read from there has no excerpt to stand on.
+  const quantityStated = (excerpt: string) =>
+    item.quantity === undefined || excerptContainsAmount(excerpt, item.quantity);
   const verified =
-    verifyEvidence(excerpt, text) &&
-    excerptContainsAmount(excerpt, item.amountMinor) &&
-    excerptContainsText(excerpt, item.name) &&
-    (item.quantity === undefined || excerptContainsAmount(excerpt, item.quantity));
+    verifyEvidence(nameEvidence.excerpt, nameText) &&
+    excerptContainsText(nameEvidence.excerpt, item.name) &&
+    verifyEvidence(amountEvidence.excerpt, amountText) &&
+    excerptContainsAmount(amountEvidence.excerpt, item.amountMinor) &&
+    (quantityStated(nameEvidence.excerpt) || quantityStated(amountEvidence.excerpt));
   if (!verified) unverified.push(path);
-  noteDisagreement(path, excerpt, item.amountMinor, referenceDate, disagreements);
+  noteDisagreement(path, amountEvidence.excerpt, item.amountMinor, referenceDate, disagreements);
   return {
     name: item.name,
     quantity: item.quantity,
     amountMinor: item.amountMinor,
     source: "model",
-    evidence: { pageIndex, excerpt, box: box(pages, pageIndex, excerpt) },
+    nameEvidence: { ...nameEvidence, box: box(pages, nameEvidence.pageIndex, nameEvidence.excerpt) },
+    amountEvidence: { ...amountEvidence, box: box(pages, amountEvidence.pageIndex, amountEvidence.excerpt) },
     verified,
   };
 }

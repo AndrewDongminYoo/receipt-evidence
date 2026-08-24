@@ -33,7 +33,15 @@ const modelItemSchema = z
     // tighten this back to required for symmetry with the other fields.
     quantity: z.int().positive().optional(),
     amountMinor: z.int(),
-    evidence: evidenceSchema,
+    // Two excerpts, not one (issue #3): OCR can flatten an item table into
+    // columns, putting an item's name and its amount many lines apart, and a
+    // single excerpt could then only cover both by quoting the whole block —
+    // which MAX_EVIDENCE_LINES rightly rejects. Each part cites the line it
+    // is actually printed on; a receipt that prints them together simply
+    // quotes the same line twice. No adjacency is required BETWEEN the two,
+    // but each excerpt is still guarded against its own line.
+    nameEvidence: evidenceSchema,
+    amountEvidence: evidenceSchema,
   })
   .strict();
 

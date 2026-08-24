@@ -89,7 +89,7 @@ function extractOutputText(response: unknown): string {
 }
 
 const SYSTEM_PROMPT =
-  "Read this receipt and report only what a deterministic parser could not. Every value must quote the exact page excerpt (verbatim substring) it was read from, with the page index it came from. Money is an integer minor unit, never a float. Omit a field you cannot support with a real excerpt rather than guessing.";
+  "Read this receipt and report only what a deterministic parser could not. Every value must quote the exact page excerpt (verbatim substring) it was read from, with the page index it came from. A line item cites two excerpts: nameEvidence quotes the line its name is printed on, and amountEvidence quotes the line its amount is printed on — when the receipt prints them on one line, quote that same line in both. Never stitch distant lines into one excerpt. Money is an integer minor unit, never a float. Omit a field you cannot support with a real excerpt rather than guessing — including an item's quantity when neither cited line states it.";
 
 /** The parser's own findings are not sent — only which header fields it left
  * blank. Sending its values would invite the model to echo them back, and an

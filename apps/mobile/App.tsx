@@ -7,7 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { File } from "expo-file-system";
 import { scan, DEFAULT_OCR_FLOOR } from "react-native-receipt-scanner";
 import type { ReceiptImage } from "react-native-receipt-scanner";
-import type { ExtractedField, ExtractedItem, ExtractionResponse, Frame, Page } from "@receipt-evidence/contract/response";
+import type { EvidenceRef, ExtractedField, ExtractedItem, ExtractionResponse, Frame, Page } from "@receipt-evidence/contract/response";
 import { apiBaseUrl } from "./src/api.ts";
 import { clearsFloor } from "./src/capture.ts";
 import { EvidenceOverlay } from "./src/EvidenceOverlay.tsx";
@@ -54,13 +54,25 @@ async function toPage(image: ReceiptImage): Promise<Page> {
  * the reader at unrelated text — the worst failure available to an app whose
  * claim is that a value is shown beside the pixels it was read from. */
 function boxesOf(result: ExtractionResponse, pageIndex: number, wanted: boolean): Frame[] {
-  const entries = [
-    ...Object.values(result.fields).filter(
-      (field): field is ExtractedField<string> | ExtractedField<number> =>
-        typeof field === "object" && field !== null,
+  const entries: { evidence: EvidenceRef; verified: boolean }[] = [
+    ...Object.values(result.fields)
+      .filter(
+        (field): field is ExtractedField<string> | ExtractedField<number> =>
+          typeof field === "object" && field !== null,
+      )
+      .map((field) => ({ evidence: field.evidence, verified: field.verified })),
+    // An item carries two evidence references (issue #3) — one box per
+    // DISTINCT cited line, since a receipt that prints name and amount
+    // together cites the same line twice.
+    ...result.items.flatMap((item) =>
+      sameEvidence(item.nameEvidence, item.amountEvidence)
+        ? [{ evidence: item.nameEvidence, verified: item.verified }]
+        : [
+            { evidence: item.nameEvidence, verified: item.verified },
+            { evidence: item.amountEvidence, verified: item.verified },
+          ],
     ),
-    ...result.items,
-    ...result.tenders,
+    ...result.tenders.map((tender) => ({ evidence: tender.evidence, verified: tender.verified })),
   ];
   return entries
     .filter(
@@ -68,6 +80,10 @@ function boxesOf(result: ExtractionResponse, pageIndex: number, wanted: boolean)
         entry.evidence.pageIndex === pageIndex && entry.verified === wanted && entry.evidence.box !== null,
     )
     .map((entry) => entry.evidence.box as Frame);
+}
+
+function sameEvidence(a: EvidenceRef, b: EvidenceRef): boolean {
+  return a.pageIndex === b.pageIndex && a.excerpt === b.excerpt;
 }
 
 export default function App() {
@@ -186,7 +202,10 @@ function Result({ image, result }: { image: ReceiptImage; result: ExtractionResp
             {item.name} — {item.amountMinor}
             {item.verified ? "" : "  ⚠ unverified"}
           </Text>
-          <Text style={styles.evidence}>“{item.evidence.excerpt}”</Text>
+          <Text style={styles.evidence}>“{item.nameEvidence.excerpt}”</Text>
+          {!sameEvidence(item.nameEvidence, item.amountEvidence) && (
+            <Text style={styles.evidence}>“{item.amountEvidence.excerpt}”</Text>
+          )}
         </View>
       ))}
 

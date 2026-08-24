@@ -21,7 +21,14 @@ test("a model item backed by real evidence is verified and anchored", async () =
   const client = {
     async complete() {
       return {
-        items: [{ name: "커피", amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } }],
+        items: [
+          {
+            name: "커피",
+            amountMinor: 4500,
+            nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+            amountEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+          },
+        ],
       };
     },
   };
@@ -29,7 +36,8 @@ test("a model item backed by real evidence is verified and anchored", async () =
   const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
 
   assert.equal(result.items[0].verified, true);
-  assert.deepEqual(result.items[0].evidence.box, { x: 0, y: 20, width: 10, height: 10 });
+  assert.deepEqual(result.items[0].nameEvidence.box, { x: 0, y: 20, width: 10, height: 10 });
+  assert.deepEqual(result.items[0].amountEvidence.box, { x: 0, y: 20, width: 10, height: 10 });
   assert.equal(result.arithmetic.agrees, true);
 });
 
@@ -38,7 +46,13 @@ test("a fabricated model item survives as unverified, never as fact", async () =
     async complete() {
       return {
         items: [
-          { name: "위스키", quantity: 1, amountMinor: 90000, evidence: { pageIndex: 0, excerpt: "위스키 90,000" } },
+          {
+            name: "위스키",
+            quantity: 1,
+            amountMinor: 90000,
+            nameEvidence: { pageIndex: 0, excerpt: "위스키 90,000" },
+            amountEvidence: { pageIndex: 0, excerpt: "위스키 90,000" },
+          },
         ],
       };
     },
@@ -61,9 +75,24 @@ test("an explicit Korean total takes precedence over settlement contributions", 
     async complete() {
       return {
         items: [
-          { name: "말차마카다쿠키", amountMinor: 2400, evidence: { pageIndex: 0, excerpt: "말차마카다쿠키 2,400" } },
-          { name: "행운한입쑥찰떡", amountMinor: 4000, evidence: { pageIndex: 0, excerpt: "행운한입쑥찰떡 4,000" } },
-          { name: "5개) 아카페", amountMinor: 2900, evidence: { pageIndex: 0, excerpt: "5개) 아카페 2,900" } },
+          {
+            name: "말차마카다쿠키",
+            amountMinor: 2400,
+            nameEvidence: { pageIndex: 0, excerpt: "말차마카다쿠키 2,400" },
+            amountEvidence: { pageIndex: 0, excerpt: "말차마카다쿠키 2,400" },
+          },
+          {
+            name: "행운한입쑥찰떡",
+            amountMinor: 4000,
+            nameEvidence: { pageIndex: 0, excerpt: "행운한입쑥찰떡 4,000" },
+            amountEvidence: { pageIndex: 0, excerpt: "행운한입쑥찰떡 4,000" },
+          },
+          {
+            name: "5개) 아카페",
+            amountMinor: 2900,
+            nameEvidence: { pageIndex: 0, excerpt: "5개) 아카페 2,900" },
+            amountEvidence: { pageIndex: 0, excerpt: "5개) 아카페 2,900" },
+          },
         ],
       };
     },
@@ -91,7 +120,14 @@ test("an English USD tender is evidenced before it reconciles a card payment", a
   const client = {
     async complete() {
       return {
-        items: [{ name: "Coffee", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "Coffee $12.99" } }],
+        items: [
+          {
+            name: "Coffee",
+            amountMinor: 1299,
+            nameEvidence: { pageIndex: 0, excerpt: "Coffee $12.99" },
+            amountEvidence: { pageIndex: 0, excerpt: "Coffee $12.99" },
+          },
+        ],
       };
     },
   };
@@ -127,7 +163,14 @@ test("a future tender offer cannot reconcile a card payment", async () => {
   const client = {
     async complete() {
       return {
-        items: [{ name: "Coffee", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "Coffee $12.99" } }],
+        items: [
+          {
+            name: "Coffee",
+            amountMinor: 1299,
+            nameEvidence: { pageIndex: 0, excerpt: "Coffee $12.99" },
+            amountEvidence: { pageIndex: 0, excerpt: "Coffee $12.99" },
+          },
+        ],
       };
     },
   };
@@ -151,7 +194,14 @@ test("a hash-prefixed tender identifier cannot reconcile a card payment", async 
   const client = {
     async complete() {
       return {
-        items: [{ name: "Coffee", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "Coffee $12.99" } }],
+        items: [
+          {
+            name: "Coffee",
+            amountMinor: 1299,
+            nameEvidence: { pageIndex: 0, excerpt: "Coffee $12.99" },
+            amountEvidence: { pageIndex: 0, excerpt: "Coffee $12.99" },
+          },
+        ],
       };
     },
   };
@@ -216,7 +266,8 @@ test("toIsoDate reads a locally-constructed date back as the same calendar day, 
 test("a malformed reply is rejected and reported, not silently emptied", async () => {
   const client = {
     async complete() {
-      // Missing `evidence`, which ModelReplySchema requires on every item.
+      // Missing `nameEvidence` and `amountEvidence`, which ModelReplySchema
+      // requires on every item.
       return { items: [{ name: "커피", amountMinor: 4500 }] };
     },
   };
@@ -270,7 +321,14 @@ test("a correct amount in minor units verifies against the decimal its receipt p
   // `unverified` filled up with correct values and stopped meaning anything.
   const client = {
     complete: async () => ({
-      items: [{ name: "SANDWICH", amountMinor: 1299, evidence: { pageIndex: 0, excerpt: "SANDWICH  12.99" } }],
+      items: [
+        {
+          name: "SANDWICH",
+          amountMinor: 1299,
+          nameEvidence: { pageIndex: 0, excerpt: "SANDWICH  12.99" },
+          amountEvidence: { pageIndex: 0, excerpt: "SANDWICH  12.99" },
+        },
+      ],
     }),
   };
   const result = await extract({ pages: [USD_PAGE] }, client, new Date(2026, 7, 22));
@@ -287,7 +345,13 @@ test("an item's name and quantity are checked against its line, not just its amo
   const client = {
     complete: async () => ({
       items: [
-        { name: "Whisky", quantity: 99, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+        {
+          name: "Whisky",
+          quantity: 99,
+          amountMinor: 4500,
+          nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+          amountEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+        },
       ],
     }),
   };
@@ -304,7 +368,14 @@ test("a fabricated name alone is enough to make an item unverified", async () =>
   // check deleted. This one carries no quantity, so only the name can fail it.
   const client = {
     complete: async () => ({
-      items: [{ name: "Whisky", amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } }],
+      items: [
+        {
+          name: "Whisky",
+          amountMinor: 4500,
+          nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+          amountEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+        },
+      ],
     }),
   };
   const result = await extract({ pages: [PAGE] }, client, new Date(2026, 7, 22));
@@ -318,7 +389,15 @@ test("an item whose name and quantity the line does state is verified", async ()
   // the quantity and the price, and all three are claimed as printed.
   const client = {
     complete: async () => ({
-      items: [{ name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 1 4,500" } }],
+      items: [
+        {
+          name: "커피",
+          quantity: 1,
+          amountMinor: 4500,
+          nameEvidence: { pageIndex: 0, excerpt: "커피 1 4,500" },
+          amountEvidence: { pageIndex: 0, excerpt: "커피 1 4,500" },
+        },
+      ],
     }),
   };
   const page = { text: "GS25\n커피 1 4,500\n합계 4,500\n", lines: [] };
@@ -334,7 +413,15 @@ test("a quantity the cited line never printed makes the item unverified", async 
   // still a value with no evidence behind it.
   const client = {
     complete: async () => ({
-      items: [{ name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } }],
+      items: [
+        {
+          name: "커피",
+          quantity: 1,
+          amountMinor: 4500,
+          nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+          amountEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+        },
+      ],
     }),
   };
   const result = await extract({ pages: [PAGE] }, client, new Date(2026, 7, 22));
@@ -364,4 +451,103 @@ test("a multi-page scan is one document, so a header page cannot supply the tota
   assert.equal(result.fields.paidTotal?.value, 1404);
   assert.equal(result.fields.paidTotal?.evidence.excerpt, "TOTAL  $14.04");
   assert.equal(result.fields.paidTotal?.evidence.pageIndex, 1, "evidence must name the page it is actually on");
+});
+
+// The GS25 shape from issue #3: OCR flattens the item table into columns, so
+// an item's name and its amount are many lines apart. A single excerpt could
+// only cover both by quoting the whole block, which MAX_EVIDENCE_LINES
+// rightly rejects — that rejection is the guard working, and the fix is two
+// excerpts per item, not a larger cap.
+const FLATTENED_PAGE = {
+  text: "GS25\n곤약젤리복숭아\n최강록명란\n합계수량/금액\n1\n1\n1,900\n1,700\n합계 3,600\n",
+  lines: [
+    { text: "곤약젤리복숭아", frame: { x: 0, y: 10, width: 10, height: 10 } },
+    { text: "최강록명란", frame: { x: 0, y: 20, width: 10, height: 10 } },
+    { text: "1,900", frame: { x: 0, y: 60, width: 10, height: 10 } },
+    { text: "1,700", frame: { x: 0, y: 70, width: 10, height: 10 } },
+  ],
+};
+
+test("a column-flattened item verifies through split evidence, one box per part", async () => {
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+        },
+        {
+          name: "최강록명란",
+          amountMinor: 1700,
+          nameEvidence: { pageIndex: 0, excerpt: "최강록명란" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,700" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [FLATTENED_PAGE] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, true);
+  assert.equal(result.items[1]?.verified, true);
+  assert.deepEqual(result.unverified, []);
+  // Each part points at its own place on the paper.
+  assert.deepEqual(result.items[0]?.nameEvidence.box, { x: 0, y: 10, width: 10, height: 10 });
+  assert.deepEqual(result.items[0]?.amountEvidence.box, { x: 0, y: 60, width: 10, height: 10 });
+  assert.equal(result.arithmetic.agrees, true);
+});
+
+test("split evidence still checks each part against its OWN line", async () => {
+  // Splitting the evidence must not loosen the guards: an amount cited to a
+  // line that states no amount, and a name cited to a line that states no
+  // such name, both fail — the split removes the adjacency requirement
+  // BETWEEN the parts, not the requirement that each part be stated where it
+  // claims to be.
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+        },
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1700,
+          nameEvidence: { pageIndex: 0, excerpt: "1,700" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,700" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [FLATTENED_PAGE] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false, "the name's line states no amount");
+  assert.equal(result.items[1]?.verified, false, "the amount's line states no such name");
+  assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
+});
+
+test("a quantity must be stated on one of the item's two cited lines", async () => {
+  // On a flattened receipt the quantity column is a third location, cited by
+  // neither excerpt — the model must omit the quantity it cannot support, and
+  // one it supplies anyway is checked against the two lines it did cite.
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "곤약젤리복숭아",
+          quantity: 4,
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [FLATTENED_PAGE] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[0]?.quantity, 4, "kept and marked, never dropped");
 });
