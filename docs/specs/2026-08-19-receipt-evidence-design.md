@@ -52,6 +52,7 @@ Its tests need no network and no device.
 3. **Deterministic pass (server).** The parser extracts merchant, date, total, currency, and reference from the OCR text, each with the line it came from.
 4. **Model pass (server).** The model is asked only for what the parser did not derive — always the line items, plus whichever header fields came back empty.
    The JSON schema makes `evidence: { pageIndex, excerpt }` required on every value; a response without it is invalid, not merely suspect.
+   A line item carries TWO of them — `nameEvidence` and `amountEvidence` — because OCR can flatten an item table into columns (issue #3), printing an item's name and its amount many lines apart; a receipt that prints them together cites the same line twice.
 5. **Verification (server, deterministic).**
    - The excerpt must occur in that page's OCR text, compared after NFKC normalisation, within a run of at most four ADJACENT lines.
      One line was the original rule, and real captures broke it: a Korean receipt can print an item's name, barcode, quantity, and price on separate lines. The cap and the adjacency requirement are what keep the relaxation from letting a model quote the page whole.
@@ -78,7 +79,8 @@ Its tests need no network and no device.
       "quantity": 4,
       "amountMinor": 13000,
       "source": "model",
-      "evidence": { "pageIndex": 0, "excerpt": "13,000", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
+      "nameEvidence": { "pageIndex": 0, "excerpt": "디아)기네스드래프트440ml", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
+      "amountEvidence": { "pageIndex": 0, "excerpt": "13,000", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
       "verified": true
     }
   ],
