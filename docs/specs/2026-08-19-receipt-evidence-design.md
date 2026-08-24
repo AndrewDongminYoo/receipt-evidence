@@ -52,12 +52,16 @@ Its tests need no network and no device.
 3. **Deterministic pass (server).** The parser extracts merchant, date, total, currency, and reference from the OCR text, each with the line it came from.
 4. **Model pass (server).** The model is asked only for what the parser did not derive — always the line items, plus whichever header fields came back empty.
    The JSON schema makes `evidence: { pageIndex, excerpt }` required on every value; a response without it is invalid, not merely suspect.
+   A line item carries TWO of them — `nameEvidence` and `amountEvidence` — because OCR can flatten an item table into columns (issue #3), printing an item's name and its amount many lines apart; a receipt that prints them together cites the same line twice.
 5. **Verification (server, deterministic).**
    - The excerpt must occur in that page's OCR text, compared after NFKC normalisation, within a run of at most four ADJACENT lines.
      One line was the original rule, and real captures broke it: a Korean receipt can print an item's name, barcode, quantity, and price on separate lines. The cap and the adjacency requirement are what keep the relaxation from letting a model quote the page whole.
    - The value must occur inside the excerpt, and how that is asked depends on the value's type: an amount against the line's amounts read the parser's own way (`excerptContainsAmount`), a string as a normalised substring (`excerptContainsText`), a date by re-parsing the cited line and comparing the calendar day.
      This was originally specified as one ported rule, `excerptContainsValue` from catfood-feeder. That port was removed on 2026-08-22 (see `packages/contract/src/guards.ts` for the two measured failures): it compared minor units against the printed decimal, so every honest USD amount failed, and it demanded exactly one numeric token, which no ordinary receipt row satisfies.
      Strings and dates, meanwhile, had never been checked at all — a fabricated merchant quoting any real line was published as `verified: true`.
+   - Split item evidence is additionally bound by order: printing preserves row order, so items citing split evidence must agree on it between their name positions and their amount positions — compared as page, then line, then offset within the line.
+     One printed token cannot back two items' halves however each quoted it, an excerpt the page cannot place unambiguously demotes its item (for a split item the position is the binding), and two distinct excerpts on one OCR-merged line remain two claims.
+     A crossed pairing is demoted to unverified even though its sum still adds up — the permutation is invisible to the arithmetic check, which is exactly why ordering has to carry the binding.
    - The parser re-parses the model's evidence line on its own — even for a field it could not derive from the whole document, it can usually read one cited line — and if it reads a different value there than the model claimed, both readings are reported as a disagreement.
    - Line-item amounts are summed and compared against the paid total.
 
@@ -78,7 +82,8 @@ Its tests need no network and no device.
       "quantity": 4,
       "amountMinor": 13000,
       "source": "model",
-      "evidence": { "pageIndex": 0, "excerpt": "13,000", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
+      "nameEvidence": { "pageIndex": 0, "excerpt": "디아)기네스드래프트440ml", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
+      "amountEvidence": { "pageIndex": 0, "excerpt": "13,000", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
       "verified": true
     }
   ],

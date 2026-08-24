@@ -107,6 +107,37 @@ export function excerptContainsText(excerpt: string, value: string): boolean {
  * Whitespace is collapsed within each line, because OCR spacing wobbles there
  * and that tolerance is wanted.
  */
+/**
+ * The span an excerpt unambiguously occupies on a page — its start as a
+ * character offset into the page's normalised text (lines normalised
+ * individually, joined by newlines) and its normalised length — or null when
+ * the page cannot place it: no run, more than one run, or more than one match
+ * inside the run. The same `findLineRuns` the other two callers use, so
+ * "where an excerpt is" has one definition; and the same ambiguity rule as
+ * the anchor (two answers mean no answer), because a span that might be the
+ * wrong one is worse than none.
+ *
+ * This exists for the cross-item pairing check in the extraction pipeline: a
+ * split item's name and amount verify against their own lines, so position is
+ * the only thing left that binds a name to ITS amount. An absolute offset
+ * carries both jobs that check has — document order (later on the page is a
+ * larger start) and reuse (two claims on one printed token overlap).
+ */
+export function evidenceSpan(excerpt: string, pageText: string): { start: number; length: number } | null {
+  const lines = pageText.split("\n");
+  const runs = findLineRuns(excerpt, lines);
+  const run = runs[0];
+  if (runs.length !== 1 || run === undefined) return null;
+  const normalised = lines.map(normalize);
+  const runText = normalised.slice(run.start, run.start + run.length).join("\n");
+  const needle = normalize(excerpt);
+  const offset = runText.indexOf(needle);
+  if (offset === -1 || runText.indexOf(needle, offset + 1) !== -1) return null;
+  let prefix = 0;
+  for (let line = 0; line < run.start; line += 1) prefix += (normalised[line]?.length ?? 0) + 1;
+  return { start: prefix + offset, length: needle.length };
+}
+
 export function verifyEvidence(excerpt: string, pageText: string): boolean {
   // An empty (or whitespace-only) excerpt is not evidence of anything, and
   // every string contains the empty string — without this the guard fails

@@ -12,7 +12,7 @@
 // when one was anchored.
 import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import type { ExtractedField, ExtractedItem, ExtractionResponse, Frame } from "../src/extract.ts";
+import type { EvidenceRef, ExtractedField, ExtractedItem, ExtractionResponse, Frame } from "../src/extract.ts";
 import type { OcrLine } from "@receipt-evidence/contract/anchor";
 
 interface ImageInfo {
@@ -85,6 +85,12 @@ function VerifiedBadge({ verified }: { verified: boolean }) {
   );
 }
 
+/** An item whose receipt prints name and amount together cites the same line
+ * twice — render (and box) that evidence once, not twice. */
+function sameEvidence(a: EvidenceRef, b: EvidenceRef): boolean {
+  return a.pageIndex === b.pageIndex && a.excerpt === b.excerpt;
+}
+
 function Evidence({ pageIndex, excerpt }: { pageIndex: number; excerpt: string }) {
   return (
     <blockquote className="evidence">
@@ -127,7 +133,14 @@ function collectBoxes(result: ExtractionResponse): BoxEntry[] {
   push("paidTotal", result.fields.paidTotal);
   push("reference", result.fields.reference);
   result.items.forEach((item, index) => {
-    if (item.evidence.box) boxes.push({ path: `item[${index}] ${item.name}`, box: item.evidence.box, verified: item.verified });
+    if (item.nameEvidence.box) {
+      boxes.push({ path: `item[${index}] ${item.name} (name)`, box: item.nameEvidence.box, verified: item.verified });
+    }
+    // A receipt that prints name and amount on one line cites it twice; one
+    // box is enough there, and a second would just double the border.
+    if (item.amountEvidence.box && !sameEvidence(item.nameEvidence, item.amountEvidence)) {
+      boxes.push({ path: `item[${index}] ${item.name} (amount)`, box: item.amountEvidence.box, verified: item.verified });
+    }
   });
   result.tenders.forEach((tender, index) => {
     if (tender.evidence.box) boxes.push({ path: `tender[${index}]`, box: tender.evidence.box, verified: tender.verified });
@@ -426,7 +439,10 @@ function ItemRow({ item }: { item: ExtractedItem }) {
         <SourceBadge source={item.source} />
         <VerifiedBadge verified={item.verified} />
       </div>
-      <Evidence pageIndex={item.evidence.pageIndex} excerpt={item.evidence.excerpt} />
+      <Evidence pageIndex={item.nameEvidence.pageIndex} excerpt={item.nameEvidence.excerpt} />
+      {!sameEvidence(item.nameEvidence, item.amountEvidence) && (
+        <Evidence pageIndex={item.amountEvidence.pageIndex} excerpt={item.amountEvidence.excerpt} />
+      )}
     </div>
   );
 }

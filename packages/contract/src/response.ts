@@ -50,7 +50,12 @@ export interface ExtractedItem {
   quantity?: number;
   amountMinor: number;
   source: FieldSource;
-  evidence: EvidenceRef;
+  /** Where the name is printed and where the amount is printed — two separate
+   * references because OCR can flatten an item table into columns (issue #3),
+   * putting the two many lines apart. On a receipt that prints them together
+   * both cite the same line. Each draws its own box. */
+  nameEvidence: EvidenceRef;
+  amountEvidence: EvidenceRef;
   verified: boolean;
 }
 

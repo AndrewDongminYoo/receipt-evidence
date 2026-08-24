@@ -11,12 +11,37 @@ test("the schema requires evidence on every value", () => {
 test("the schema accepts a fully evidenced reply", () => {
   const reply = {
     items: [
-      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+      {
+        name: "커피",
+        quantity: 1,
+        amountMinor: 4500,
+        nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+        amountEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+      },
     ],
     merchant: { value: "GS25", evidence: { pageIndex: 0, excerpt: "GS25" } },
   };
 
   assert.equal(ModelReplySchema.safeParse(reply).success, true);
+});
+
+test("an item needs BOTH its name's and its amount's evidence, not one shared excerpt", () => {
+  // The pre-#3 shape: one `evidence` for the whole item. On a column-flattened
+  // receipt that forced the model to quote the whole block, and `.strict()` is
+  // what keeps the old shape from silently satisfying the new schema.
+  const oldShape = {
+    items: [
+      { name: "커피", amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+    ],
+  };
+  const nameOnly = {
+    items: [
+      { name: "커피", amountMinor: 4500, nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+    ],
+  };
+
+  assert.equal(ModelReplySchema.safeParse(oldShape).success, false);
+  assert.equal(ModelReplySchema.safeParse(nameOnly).success, false);
 });
 
 test("the JSON schema handed to the model matches the zod definition", () => {
@@ -28,25 +53,32 @@ test("the JSON schema handed to the model matches the zod definition", () => {
 });
 
 test("the schema rejects an empty or whitespace-only excerpt", () => {
-  const emptyExcerpt = {
+  const itemWith = (excerpt: string) => ({
     items: [
-      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "" } },
+      {
+        name: "커피",
+        quantity: 1,
+        amountMinor: 4500,
+        nameEvidence: { pageIndex: 0, excerpt },
+        amountEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+      },
     ],
-  };
-  const whitespaceExcerpt = {
-    items: [
-      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "   " } },
-    ],
-  };
+  });
 
-  assert.equal(ModelReplySchema.safeParse(emptyExcerpt).success, false);
-  assert.equal(ModelReplySchema.safeParse(whitespaceExcerpt).success, false);
+  assert.equal(ModelReplySchema.safeParse(itemWith("")).success, false);
+  assert.equal(ModelReplySchema.safeParse(itemWith("   ")).success, false);
 });
 
 test("a reply carrying an invented field is rejected, not silently stripped", () => {
   const reply = {
     items: [
-      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+      {
+        name: "커피",
+        quantity: 1,
+        amountMinor: 4500,
+        nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+        amountEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+      },
     ],
     confidence: 0.91,
   };

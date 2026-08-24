@@ -5,7 +5,7 @@
 import { analyze } from "@receipt-evidence/contract/analyze";
 import { evidenceLines } from "@receipt-evidence/contract/evidence";
 import type { ParsedField, ParsedReceipt } from "@receipt-evidence/contract/analyze";
-import { verifyEvidence, excerptContainsAmount, excerptContainsText } from "@receipt-evidence/contract/guards";
+import { verifyEvidence, excerptContainsAmount, excerptContainsText, evidenceSpan } from "@receipt-evidence/contract/guards";
 import { parseDate } from "@receipt-evidence/contract/dates";
 import { checkArithmetic } from "@receipt-evidence/contract/arithmetic";
 import { anchorToLines } from "@receipt-evidence/contract/anchor";
@@ -192,30 +192,139 @@ function buildItem(
   disagreements: Disagreement[],
 ): ExtractedItem {
   const path = `items[${index}]`;
-  const { pageIndex, excerpt } = item.evidence;
-  const text = pageText(pages, pageIndex);
-  // Every part of the item has to be stated on the cited line, not just the
+  const { nameEvidence, amountEvidence } = item;
+  const nameText = pageText(pages, nameEvidence.pageIndex);
+  const amountText = pageText(pages, amountEvidence.pageIndex);
+  // Every part of the item has to be stated where it is cited, not just the
   // money. Checking the amount alone let a model quote a real priced row and
   // attach whatever name and quantity it liked — `{name: "Whisky", quantity:
   // 99, amountMinor: 4500}` citing `커피 4,500` verified, and both clients
-  // then showed the invented name under a verified badge. A quantity is
+  // then showed the invented name under a verified badge. The evidence is
+  // split in two (issue #3) because OCR can flatten an item table into
+  // columns, putting the name and the amount many lines apart — but the
+  // split removes only the adjacency requirement BETWEEN the parts: the name
+  // still has to be stated on ITS line and the amount on ITS. A quantity is
   // optional in the schema precisely so the model omits what it cannot read;
-  // one it does supply is a claim like any other and is checked as one.
+  // one it does supply is a claim like any other, checked against the two
+  // lines the item cites — a flattened receipt's quantity column is a third
+  // location, and a count read from there has no excerpt to stand on.
+  const quantityStated = (excerpt: string) =>
+    item.quantity === undefined || excerptContainsAmount(excerpt, item.quantity);
   const verified =
-    verifyEvidence(excerpt, text) &&
-    excerptContainsAmount(excerpt, item.amountMinor) &&
-    excerptContainsText(excerpt, item.name) &&
-    (item.quantity === undefined || excerptContainsAmount(excerpt, item.quantity));
+    verifyEvidence(nameEvidence.excerpt, nameText) &&
+    excerptContainsText(nameEvidence.excerpt, item.name) &&
+    verifyEvidence(amountEvidence.excerpt, amountText) &&
+    excerptContainsAmount(amountEvidence.excerpt, item.amountMinor) &&
+    (quantityStated(nameEvidence.excerpt) || quantityStated(amountEvidence.excerpt));
   if (!verified) unverified.push(path);
-  noteDisagreement(path, excerpt, item.amountMinor, referenceDate, disagreements);
+  noteDisagreement(path, amountEvidence.excerpt, item.amountMinor, referenceDate, disagreements);
   return {
     name: item.name,
     quantity: item.quantity,
     amountMinor: item.amountMinor,
     source: "model",
-    evidence: { pageIndex, excerpt, box: box(pages, pageIndex, excerpt) },
+    nameEvidence: { ...nameEvidence, box: box(pages, nameEvidence.pageIndex, nameEvidence.excerpt) },
+    amountEvidence: { ...amountEvidence, box: box(pages, amountEvidence.pageIndex, amountEvidence.excerpt) },
     verified,
   };
+}
+
+/**
+ * Demotes split-evidence items whose name-to-amount pairing the receipt never
+ * made. Each half of a split item verifies against its own line, so a model
+ * could pair item A's name with item B's amount and vice versa — the sum is
+ * unchanged, so `checkArithmetic` cannot see the permutation, and both
+ * clients would present the crossed association under a verified badge.
+ *
+ * Column flattening preserves row order — that is what makes the columns
+ * columns — so among the items citing split evidence, the name positions and
+ * the amount positions must agree on the items' order, and one printed
+ * excerpt cannot back two items' halves. An item whose excerpt the page
+ * cannot place unambiguously is demoted outright — for a split item the
+ * position IS the binding, so no position means no established association.
+ * A single unambiguous split item has nothing to be ordered against and
+ * passes. The pairwise check is the strongest binding the page's text
+ * supports — it cannot catch a lone mispaired item, and does not pretend to.
+ */
+function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unverified: string[]): void {
+  // Every claim reduces to the SPAN it occupies — (pageIndex, start, end) in
+  // the page's normalised text. Spans carry both jobs at once: document
+  // order (the scan is ONE ordered document, pages then lines then left to
+  // right, the way the printer wrote it), and reuse (two claims on one
+  // printed token overlap). Comparing anything weaker — excerpt strings,
+  // then start offsets — left a hole per round of review; the span is where
+  // those fixes converge.
+  interface Span {
+    page: number;
+    start: number;
+    end: number;
+  }
+  interface Entry {
+    index: number;
+    split: boolean;
+    name: Span;
+    amount: Span;
+  }
+  const demoted = new Set<number>();
+  const entries: Entry[] = [];
+  for (const [index, item] of items.entries()) {
+    if (!item.verified) continue;
+    const { nameEvidence, amountEvidence } = item;
+    const split = !(nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt);
+    const nameSpan = evidenceSpan(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
+    const amountSpan = split ? evidenceSpan(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex)) : nameSpan;
+    if (nameSpan === null || amountSpan === null) {
+      // Ambiguity fails CLOSED for a split item: the span is the binding, so
+      // an excerpt the page cannot place (a repeated printed amount, say)
+      // leaves the association unestablished — excluding the item from the
+      // check while calling it verified would make repetition a bypass. The
+      // model's remedy is to quote enough adjacent context to be unambiguous.
+      // An UNSPLIT item keeps the anchor's precedent instead — its one line
+      // binds its halves internally, so ambiguity costs it the box and its
+      // registry entry here, not its verification.
+      if (split) demoted.add(index);
+      continue;
+    }
+    entries.push({
+      index,
+      split,
+      name: { page: nameEvidence.pageIndex, start: nameSpan.start, end: nameSpan.start + nameSpan.length },
+      amount: { page: amountEvidence.pageIndex, start: amountSpan.start, end: amountSpan.start + amountSpan.length },
+    });
+  }
+  const compare = (a: Span, b: Span) => Math.sign(a.page - b.page) || Math.sign(a.start - b.start);
+  // Reuse: two claims on the same printed token. The same start is always
+  // reuse, whatever each quoted around it ("1,900" vs "1,900\n1,700"); mere
+  // overlap is reuse only when both items claim the same VALUE ("PRICE 100"
+  // and "100" both claiming 100) — a whole merged line quoted beside one of
+  // its own tokens backs a DIFFERENT value and stays two claims.
+  const shared = (a: Span, b: Span, sameClaim: boolean) =>
+    a.page === b.page && (a.start === b.start || (sameClaim && a.start < b.end && b.start < a.end));
+  for (const a of entries) {
+    for (const b of entries) {
+      if (a.index >= b.index) continue;
+      const itemA = items[a.index];
+      const itemB = items[b.index];
+      if (itemA === undefined || itemB === undefined) continue;
+      const nameReuse = shared(a.name, b.name, itemA.name === itemB.name);
+      const amountReuse = shared(a.amount, b.amount, itemA.amountMinor === itemB.amountMinor);
+      // A crossing (order inversion) is checked between SPLIT items only: an
+      // unsplit item's halves bind each other, and OCR emits a kept-together
+      // row at an unpredictable point of a flattened region, so its order
+      // against split halves is not evidence of anything.
+      const crossed = a.split && b.split && compare(a.name, b.name) * compare(a.amount, b.amount) < 0;
+      if (nameReuse || amountReuse || crossed) {
+        demoted.add(a.index);
+        demoted.add(b.index);
+      }
+    }
+  }
+  for (const index of [...demoted].sort((left, right) => left - right)) {
+    const item = items[index];
+    if (item === undefined) continue;
+    items[index] = { ...item, verified: false };
+    unverified.push(`items[${index}]`);
+  }
 }
 
 function emptyReceipt(): ParsedReceipt {
@@ -297,6 +406,7 @@ export async function extract(
   );
 
   const items = reply.items.map((item, index) => buildItem(item, index, pages, referenceDate, unverified, disagreements));
+  demoteCrossedItems(items, pages, unverified);
   const tenders = parsed.tenders
     .map((tender, index) =>
       resolve(
