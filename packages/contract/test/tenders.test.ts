@@ -15,6 +15,12 @@ test("extractTenders ignores a gift-certificate name without a payment amount", 
   assert.deepEqual(extractTenders(lines, "KRW"), []);
 });
 
+test("extractTenders ignores a tender balance that mentions payment", () => {
+  const lines = evidenceLines("Gift Card Balance after Payment: $5.00");
+
+  assert.deepEqual(extractTenders(lines, "USD"), []);
+});
+
 test("extractTenders reads English tender payments in USD", () => {
   for (const label of ["Gift Card", "Gift Certificate", "Voucher"]) {
     const lines = evidenceLines(`${label} Payment: $5.00`);
