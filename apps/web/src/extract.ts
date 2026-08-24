@@ -239,7 +239,7 @@ function buildItem(
  * Column flattening preserves row order — that is what makes the columns
  * columns — so among the items citing split evidence on the same pages, the
  * name lines and the amount lines must agree on the items' order, and one
- * printed line cannot back two items' halves. An item whose excerpt the page
+ * printed excerpt cannot back two items' halves. An item whose excerpt the page
  * cannot place unambiguously contributes nothing here (the same rule as the
  * anchor: two runs mean no answer); a single split item likewise has nothing
  * to be ordered against. The pairwise check is the strongest binding the
@@ -256,16 +256,24 @@ function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unve
     const nameLine = evidenceLineIndex(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
     const amountLine = evidenceLineIndex(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex));
     if (nameLine === null || amountLine === null) return [];
-    return [{ index, namePage: nameEvidence.pageIndex, amountPage: amountEvidence.pageIndex, nameLine, amountLine }];
+    return [{ index, name: nameEvidence, amount: amountEvidence, nameLine, amountLine }];
   });
   const demoted = new Set<number>();
   for (const a of split) {
     for (const b of split) {
       if (a.index >= b.index) continue;
-      if (a.namePage !== b.namePage || a.amountPage !== b.amountPage) continue;
+      if (a.name.pageIndex !== b.name.pageIndex || a.amount.pageIndex !== b.amount.pageIndex) continue;
       const nameOrder = Math.sign(a.nameLine - b.nameLine);
       const amountOrder = Math.sign(a.amountLine - b.amountLine);
-      if (nameOrder * amountOrder < 0 || nameOrder === 0 || amountOrder === 0) {
+      // An equal line position is reuse only when the cited excerpt itself is
+      // shared: OCR can merge two item rows into ONE text line, and two
+      // distinct excerpts there are the receipt genuinely printing two
+      // products, not one half backing two items. (A repeated identical
+      // excerpt on different lines never reaches here — two runs means
+      // evidenceLineIndex already returned null.)
+      const nameShared = nameOrder === 0 && a.name.excerpt === b.name.excerpt;
+      const amountShared = amountOrder === 0 && a.amount.excerpt === b.amount.excerpt;
+      if (nameOrder * amountOrder < 0 || nameShared || amountShared) {
         demoted.add(a.index);
         demoted.add(b.index);
       }

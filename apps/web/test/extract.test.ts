@@ -591,6 +591,37 @@ test("one printed line cannot back two split items' halves", async () => {
   assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
 });
 
+test("two items OCR merged onto one line are distinct claims, not reuse", async () => {
+  // Codex P2 on PR #5: when OCR merges two item rows into one text line, both
+  // items' halves resolve to the same line index. Equal positions are reuse
+  // only when the cited excerpt itself is shared — distinct excerpts on one
+  // line are the receipt genuinely printing two products there.
+  const page = { text: "GS25\n커피 4,500 빵 2,000\n합계 6,500\n", lines: [] };
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "커피",
+          amountMinor: 4500,
+          nameEvidence: { pageIndex: 0, excerpt: "커피" },
+          amountEvidence: { pageIndex: 0, excerpt: "4,500" },
+        },
+        {
+          name: "빵",
+          amountMinor: 2000,
+          nameEvidence: { pageIndex: 0, excerpt: "빵" },
+          amountEvidence: { pageIndex: 0, excerpt: "2,000" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, true);
+  assert.equal(result.items[1]?.verified, true);
+  assert.deepEqual(result.unverified, []);
+});
+
 test("a quantity must be stated on one of the item's two cited lines", async () => {
   // On a flattened receipt the quantity column is a third location, cited by
   // neither excerpt — the model must omit the quantity it cannot support, and
