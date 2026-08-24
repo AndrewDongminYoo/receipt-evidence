@@ -27,3 +27,10 @@ test("selectDate skips expiry labels and future dates", () => {
 
   assert.equal(selectDate(lines, reference)?.text, "2026-07-02 20:20:50");
 });
+
+test("selectDate skips a four-digit identifier that is not a receipt year", () => {
+  const reference = new Date(2026, 7, 24);
+  const lines = evidenceLines("현금영수증 발행번호 0126-1-1\n2026/08/12 (수) 17:47:31\n");
+
+  assert.equal(selectDate(lines, reference)?.text, "2026/08/12 (수) 17:47:31");
+});
