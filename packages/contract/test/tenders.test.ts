@@ -56,6 +56,16 @@ test("extractTenders prefers a currency-marked payment amount over an identifier
   assert.deepEqual(extractTenders(lines, "USD"), [{ amountMinor: 500, evidence: lines[0] }]);
 });
 
+test("extractTenders ignores a hash-prefixed tender payment identifier", () => {
+  const lines = evidenceLines("Gift Card Payment #1234 $5.00");
+
+  assert.deepEqual(extractTenders(lines, "USD"), [{ amountMinor: 500, evidence: lines[0] }]);
+});
+
+test("extractTenders does not treat a hash-prefixed identifier as its only payment amount", () => {
+  assert.deepEqual(extractTenders(evidenceLines("Gift Card Payment #1234"), "USD"), []);
+});
+
 test("extractTenders reads English tender payments in USD", () => {
   for (const label of ["Gift Card", "Gift Certificate", "Voucher"]) {
     const lines = evidenceLines(`${label} Payment: $5.00`);

@@ -13,7 +13,7 @@ const TENDER_BALANCE_LABEL = /\bbalance\b|잔액/i;
 const TENDER_FUTURE_USE_LABEL =
   /\b(?:next|future)\s+(?:payment|use|purchase|order)\b|\b(?:valid|available)\b.*\b(?:payment|use|purchase|order)\b|사용\s*(?:가능|예정)|(?:다음|차후)\s*(?:결제|사용|구매|주문)/i;
 const TENDER_PAYMENT_LABEL = /결제\s*금액|사용\s*금액|결제|사용|차감|\bpayment\b/i;
-const TENDER_MARKED_AMOUNT_G = /(?:[$₩#]\s*|\b(?:KRW|USD)\s*)(\d[\d,]*(?:\.\d{2})?)/gi;
+const TENDER_MARKED_AMOUNT_G = /(?:[$₩]\s*|\b(?:KRW|USD)\s*)(\d[\d,]*(?:\.\d{2})?)/gi;
 
 /** Whether a line names a non-card tender payment, rather than the tender itself. */
 export function isTenderPaymentLine(text: string): boolean {
@@ -35,7 +35,9 @@ export function extractTenders(lines: readonly OcrEvidence[], currency: Currency
     const balanceMatch = TENDER_BALANCE_LABEL.exec(paymentTail);
     const amountTail = balanceMatch === null ? paymentTail : paymentTail.slice(0, balanceMatch.index);
     const markedAmounts = [...amountTail.matchAll(TENDER_MARKED_AMOUNT_G)];
-    const unmarkedAmounts = [...amountTail.matchAll(AMOUNT_PATTERN_G)];
+    const unmarkedAmounts = [...amountTail.matchAll(AMOUNT_PATTERN_G)].filter(
+      (amount) => !/#\s*$/.test(amountTail.slice(0, amount.index)),
+    );
     const amountText = markedAmounts[0]?.[1] ?? unmarkedAmounts[unmarkedAmounts.length - 1]?.[0];
     const amountMinor = amountText === undefined ? null : parseAmountMinor(amountText, currency);
     if (amountMinor !== null && amountMinor > 0) tenders.push({ amountMinor, evidence });
