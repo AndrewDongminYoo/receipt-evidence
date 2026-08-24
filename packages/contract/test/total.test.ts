@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { evidenceLines } from "../src/evidence.ts";
-import { selectTotal } from "../src/total.ts";
+import { isAmountOnlyRow, selectTotal } from "../src/total.ts";
 
 test("selectTotal ignores discount, subtotal and tax rows", () => {
   const lines = evidenceLines("소계 20,000\n할인금액 -6,600\n합계 14,800\n");
@@ -67,4 +67,31 @@ test("a letter-spaced VAT row is still excluded from the total", () => {
   const lines = evidenceLines("커피 4,500\n부 가 세  409\n");
 
   assert.equal(selectTotal(lines, "KRW"), null, "a receipt with only a tax row has no total");
+});
+
+test("a currency glyph decides the total when OCR scrambled the label order", () => {
+  // The 7-Eleven capture: Vision emitted the big bold `합계` ABOVE the
+  // `부  가  세` row it sits below on paper, so the label run read
+  // [합계, 부 가 세] against values [182, #2,000] and positional pairing gave
+  // the VAT. On the device that shipped as `Paid total: 182` with `"182"` as
+  // its evidence.
+  const lines = evidenceLines("과세물품가액\n1,818\n합계\n부  가  세\n182\n#2,000\n");
+
+  assert.equal(selectTotal(lines, "KRW")?.text, "#2,000");
+});
+
+test("# before a digit is the won glyph a printer without ₩ uses", () => {
+  assert.equal(isAmountOnlyRow("#2,000"), true, "an amount row, so it can be a split total's value");
+  assert.equal(isAmountOnlyRow("2,000"), true);
+  // Narrow on purpose: # before a letter is an item or store number.
+  assert.equal(isAmountOnlyRow("세븐일레븐 뚝섬리버빌점#19345"), false);
+});
+
+test("the split-total lookahead stops at a label that claims the next value", () => {
+  // Without the guard the walk steps over `부  가  세` and hands 합계 the
+  // VAT's number. Distinct from the column-aligned case above: here there is
+  // no value run to pair, just a label and one value after it.
+  const lines = evidenceLines("합계\n부  가  세\n182\n");
+
+  assert.notEqual(selectTotal(lines, "KRW")?.text, "182", "never the figure the other label named");
 });

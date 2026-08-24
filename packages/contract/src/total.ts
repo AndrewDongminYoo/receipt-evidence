@@ -45,8 +45,15 @@ const NAMED_ITEM = /[A-Za-zㄱ-힝]/;
 // Non-global: `.test()`-only. A `g`-flagged twin is kept separately for the
 // `.replace()` call in isAmountOnlyRow — see DATE_PATTERN_G's note in
 // dates.ts on why a `g` regex must not be shared across both uses.
-const CURRENCY_SYMBOL = /[₩$]|원|\b(KRW|USD)\b/i;
-const CURRENCY_SYMBOL_G = /[₩$]|원|\b(KRW|USD)\b/gi;
+// `#` directly before a digit is a won glyph: Korean thermal printers without
+// a ₩ in their font print `합계  #2,000`, and the 7-Eleven capture does. It is
+// deliberately narrow — `#` alone, or before a letter, is an item or store
+// number (`뚝섬리버빌점#19345`), and only the digit lookahead keeps those out.
+// A line that is nothing but `#19345` would still read as an amount; no
+// receipt seen prints one, and the alternative is failing to read the total
+// on every printer of this kind.
+const CURRENCY_SYMBOL = /[₩$]|#(?=\d)|원|\b(KRW|USD)\b/i;
+const CURRENCY_SYMBOL_G = /[₩$]|#(?=\d)|원|\b(KRW|USD)\b/gi;
 // `원` is a currency only where it follows an amount: `12,900원` is money,
 // `원두커피` is coffee.
 // Exported: currency.ts's marker checks are the same static fields Dart
@@ -101,6 +108,22 @@ function columnAlignedValue(
     values.push(lines[index]);
   }
   if (values.length < labels) return null;
+  // Positional pairing assumes the labels and the values came out in the same
+  // order, and OCR does not guarantee it. On the 7-Eleven capture Vision put
+  // the big bold `합계` ABOVE the `부  가  세` row it sits below on paper, so
+  // the run read [합계, 부 가 세] against values [182, #2,000] and the VAT
+  // shipped as the paid total.
+  //
+  // A currency glyph is the receipt's own answer to which number is the
+  // total: the subtotal and the tax print bare, the total gets the ₩ or the
+  // #. When exactly one value in the column carries one, it is the total
+  // whatever order the labels landed in. Exactly one, because a receipt that
+  // marks every value tells us nothing by marking them — that falls through
+  // to pairing, which is what the stacked `SUBTOTAL:/TAX:/TOTAL:` block over
+  // bare `5.50/0.53/6.03` needs. This is the same belief currencyMarkedEvidence
+  // already encodes as the last resort, applied one level earlier.
+  const marked = values.filter((value) => CURRENCY_SYMBOL.test(value.text));
+  if (marked.length === 1) return marked[0] as OcrEvidence;
   return values[labelIndex - start];
 }
 
@@ -124,6 +147,12 @@ function splitTotalValueAfter(
   ) {
     const line = lines[index];
     if (parseAmountMinor(line.text, currency) === null) {
+      // A line carrying no amount that NAMES a figure claims the value after
+      // it, so walking past hands our label someone else's number. Measured on
+      // a 7-Eleven capture: Vision's reading order put the big bold `합계`
+      // above the `부  가  세` row, the lookahead stepped over that label, and
+      // the VAT's 182 shipped as the paid total with `"182"` as its evidence.
+      if (namesAnotherFigure(line.text) || TOTAL_LABEL.test(line.text)) return null;
       skipped++;
       continue;
     }
