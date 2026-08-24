@@ -246,6 +246,12 @@ export default function Page() {
   }
 
   function addPage() {
+    // Adding a page does not renumber anything, but the shown result — and
+    // any response still in flight — describes a document with FEWER pages
+    // than the form now shows, which misreads as the current document's
+    // extraction. Same rule as removal: structure changed, results are stale.
+    requestRevision.current += 1;
+    setResult(null);
     const id = nextPageId.current++;
     setPageInputs((pages) => [...pages, { id, ocrText: "", linesText: "", image: null, sendImage: false }]);
   }
