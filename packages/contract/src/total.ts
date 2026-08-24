@@ -214,14 +214,19 @@ function currencyMarkedEvidence(lines: OcrEvidence[], currency: Currency): OcrEv
  * inference (Task 6), so this must not depend on a final currency decision.
  * It is threaded through only to satisfy parseAmountMinor's signature. */
 export function selectTotal(lines: OcrEvidence[], currency: Currency): OcrEvidence | null {
+  let cardPaymentEvidence: OcrEvidence | null = null;
   for (let index = lines.length - 1; index >= 0; index--) {
     const line = lines[index];
     if (!TOTAL_LABEL.test(line.text) || namesAnotherFigure(line.text) || isCardPaymentMetadata(line.text)) {
       continue;
     }
-    if (labeledAmount(line.text, currency) !== null) return line;
-    const value = splitTotalValueAfter(lines, index, currency);
-    if (value !== null) return value;
+    const value = labeledAmount(line.text, currency) !== null ? line : splitTotalValueAfter(lines, index, currency);
+    if (value === null) continue;
+    if (CARD_PAYMENT_TOTAL_LABEL.test(line.text)) {
+      cardPaymentEvidence ??= value;
+      continue;
+    }
+    return value;
   }
-  return currencyMarkedEvidence(lines, currency);
+  return cardPaymentEvidence ?? currencyMarkedEvidence(lines, currency);
 }

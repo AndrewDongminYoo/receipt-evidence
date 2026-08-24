@@ -23,6 +23,12 @@ test("selectTotal ignores card-payment metadata that follows the total", () => {
   }
 });
 
+test("selectTotal prefers an explicit total over settlement contributions", () => {
+  const lines = evidenceLines("TOTAL $12.99\nGift Card Payment $5.00\nCredit Card Payment $7.99\n");
+
+  assert.equal(selectTotal(lines, "USD")?.text, "TOTAL $12.99");
+});
+
 test("selectTotal keeps a paid total that also reports an item count", () => {
   const lines = evidenceLines("TOTAL 2 ITEMS $24.95\n");
 
