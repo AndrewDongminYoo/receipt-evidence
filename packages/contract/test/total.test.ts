@@ -23,6 +23,14 @@ test("selectTotal ignores card-payment metadata that follows the total", () => {
   }
 });
 
+test("selectTotal ignores unsuccessful card-payment attempts", () => {
+  for (const status of ["Declined", "Failed", "Voided", "Reversed"]) {
+    const lines = evidenceLines(`$10.00\nCredit Card Payment ${status} $12.99\n`);
+
+    assert.equal(selectTotal(lines, "USD")?.text, "$10.00", status);
+  }
+});
+
 test("selectTotal prefers an explicit total over settlement contributions", () => {
   const lines = evidenceLines("TOTAL $12.99\nGift Card Payment $5.00\nCredit Card Payment $7.99\n");
 
