@@ -21,6 +21,17 @@ test("extractTenders ignores a tender balance that mentions payment", () => {
   assert.deepEqual(extractTenders(lines, "USD"), []);
 });
 
+test("extractTenders ignores unsuccessful tender attempts", () => {
+  for (const text of [
+    "Gift Card Payment Declined $5.00",
+    "Voucher Payment Failed $5.00",
+    "Coupon Payment Voided $5.00",
+    "Gift Certificate Payment Reversed $5.00",
+  ]) {
+    assert.deepEqual(extractTenders(evidenceLines(text), "USD"), [], text);
+  }
+});
+
 test("extractTenders ignores a tender offer for a future payment", () => {
   const lines = evidenceLines("Coupon valid for use on next payment: $5.00");
 
@@ -78,6 +89,12 @@ test("extractTenders does not treat a hash-prefixed identifier as its only payme
 
 test("extractTenders reads a hash-marked Korean tender amount", () => {
   const lines = evidenceLines("상품권 결제금액 #5,000");
+
+  assert.deepEqual(extractTenders(lines, "KRW"), [{ amountMinor: 5000, evidence: lines[0] }]);
+});
+
+test("extractTenders ignores a trailing Korean approval identifier", () => {
+  const lines = evidenceLines("상품권 결제금액: 5,000 승인번호: 1234");
 
   assert.deepEqual(extractTenders(lines, "KRW"), [{ amountMinor: 5000, evidence: lines[0] }]);
 });
