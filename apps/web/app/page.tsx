@@ -480,9 +480,16 @@ export default function Page() {
               </div>
             );
           })}
-          {pageInputs.some((page) => page.image !== null) && boxes.length === 0 && (
-            <p className="hint">No evidence anchored to a line — supply OCR lines JSON above to see boxes.</p>
-          )}
+          {/* The hint speaks for the frames actually shown: a box anchored on
+              a page WITHOUT an uploaded photo is never rendered, so counting
+              it would suppress the only explanation for a photo'd page whose
+              frame is blank. */}
+          {pageInputs.some((page) => page.image !== null) &&
+            !boxes.some((entry) => pageInputs[entry.pageIndex]?.image != null) && (
+              <p className="hint">
+                No evidence anchored to a displayed page — supply OCR lines JSON above to see boxes.
+              </p>
+            )}
 
           <section className="fields">
             <h2>Fields</h2>
