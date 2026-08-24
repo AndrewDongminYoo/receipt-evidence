@@ -1,0 +1,25 @@
+name: ci
+
+on: [push, pull_request]
+
+# The job only reads the repository; nothing here writes to it.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # checkout leaves its token in .git/config by default, where any
+          # later step (or a dependency's install script) could reuse it.
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck

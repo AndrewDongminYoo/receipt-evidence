@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Receipt Evidence",
+    "slug": "receipt-evidence",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "dev.dongminyu.receiptevidence",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Receipt Evidence opens the document scanner to photograph a receipt. The photo stays on the device unless its text is too poor to read."
+      }
+    },
+    "android": {
+      "package": "dev.dongminyu.receiptevidence"
+    }
+  }
+}

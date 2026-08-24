@@ -1,0 +1,45 @@
+not saleps
+«лочот
+lululemon
+123 Highway 456 S
+Unit 234
+Sampleton, GA
+34567
+456-789-0123
+Transaction #:
+56789
+Date: 7/11/26
+Time: 1:37 PM
+Store: 67890
+Register: 1
+Cashier: 78901234567890
+SALE
+Item
+Qty
+Price
+Amount
+Align HR Crop
+) 21" *Cross Waist PKTP/2
+890123456
+49.00
+49.00
+Align Pant 25'
+DKCH/2
+901234567
+59.00
+59.00
+Hooded Define
+Jacket
+*Nulu WHT/8
+012345678
+59.00
+59.00
+Swiftly Relaxed LS PKTP/PKTP/4
+123456789
+1
+39.00
+39.00
+Subtotal
+206.00
+Tax
+14.42

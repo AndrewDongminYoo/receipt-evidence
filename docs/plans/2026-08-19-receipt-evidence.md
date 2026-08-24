@@ -6,13 +6,14 @@
 
 **Architecture:** One pnpm workspace. `packages/contract` owns the parser, the guards, the schema, and the types, and its tests run without network or device. `apps/web` exposes `/api/extract` plus a demo page; `apps/mobile` captures through `react-native-receipt-scanner` and draws evidence boxes over the receipt.
 
-**Tech Stack:** TypeScript, Node's built-in test runner (`node --test`, native type stripping — no test framework dependency), pnpm workspaces, zod 4.4.3 for the one schema definition, openai 7.5.0, Next.js 16.3.1 + React 19.2.8, Expo 57.0.14 + React Native 0.87.0, `react-native-receipt-scanner` 0.8.0.
+**Tech Stack:** TypeScript, Node's built-in test runner (`node --test`, native type stripping — no test framework dependency), pnpm workspaces, zod 4.4.3 for the one schema definition, openai 7.5.0, Next.js 16.3.1 + React 19.2.8, Expo 57.0.14 + React Native 0.86.2 + React 19.2.3, `react-native-receipt-scanner` 0.8.0.
 
 **Spec:** `docs/specs/2026-08-19-receipt-evidence-design.md`
 
 ## Global Constraints
 
-- **Versions** verified against the npm registry on 2026-08-19: `expo@57.0.14`, `next@16.3.1`, `react@19.2.8`, `react-native@0.87.0`, `openai@7.5.0`, `zod@4.4.3`. Pin these; do not float.
+- **Versions** verified against the npm registry on 2026-08-19: `expo@57.0.14`, `next@16.3.1`, `react@19.2.8`, `openai@7.5.0`, `zod@4.4.3`. Pin these; do not float.
+- **The mobile pins are Expo's, not npm's `latest`** (corrected 2026-08-22 at Task 16). This line originally read `react-native@0.87.0`, which is what npm ships as `latest` — but `expo@57.0.14`'s own `bundledNativeModules.json` names `react-native` `0.86.2` and `react` `19.2.3`, and Expo's prebuild and autolinking are coupled to that pair. The app uses Expo's versions; the web app keeps `react@19.2.8` for Next 16.3.1, which pnpm resolves per workspace package. `expo` and `expo-file-system` were then raised again to `57.0.15`/`57.0.5` by `expo run:ios` on 2026-08-23 — the CLI aligns the manifest during prebuild — and those are the versions the first successful native build used.
 - **No test framework.** Tests are `node --test` over `*.test.ts`. Node strips TypeScript types natively. Adding vitest or jest to `packages/contract` is a plan violation.
 - **The OpenAI model identifier is never written from memory.** Task 14 begins by reading OpenAI's current model documentation and recording the identifier in the plan's own notes file. A model id that appears in code without that step is a defect.
 - **One failure rule, everywhere:** a value that fails any check is kept, marked `verified: false`, and listed under `unverified`. Never silently dropped, never presented as fact.
@@ -36,7 +37,7 @@ packages/contract/
   src/currency.ts                  inferCurrency()
   src/items.ts                     extractItems()
   src/analyze.ts                   analyze() — assembles a ParsedReceipt
-  src/guards.ts                    excerptContainsValue(), verifyEvidence()
+  src/guards.ts                    excerptContainsAmount(), excerptContainsText(), verifyEvidence()
   src/arithmetic.ts                checkArithmetic()
   src/anchor.ts                    anchorToLines()
   src/schema.ts                    zod schema for the model's reply + JSON Schema
@@ -153,7 +154,7 @@ git commit -m "build: 🏗️ set up the pnpm workspace and the contract package
 - Consumes: nothing.
 - Produces: `interface OcrEvidence { lineIndex: number; text: string }` and `evidenceLines(rawText: string): OcrEvidence[]`. Every later module quotes lines through this type.
 
-Port from `due_back/lib/due_back/service/receipt_analyzer.dart:176-184`. `lineIndex` counts **every** line of the raw text including blank ones, so an index always points back at the original document; blank lines are then filtered out of the returned list.
+Port from `due_back/lib/due_back/service/receipt_analyzer.dart:176-184`. Blank lines are trimmed away **first**, and `lineIndex` is then assigned over what survives — Dart's `.indexed` runs on the already-filtered iterable. So the index counts recognised lines, not raw document lines. That is also what the rest of the system needs: the index points into the scanner's `ocrLines[]`, which contains recognised lines only and never blanks.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -163,12 +164,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { evidenceLines } from "../src/evidence.ts";
 
-test("evidenceLines drops blanks but keeps original line indexes", () => {
+test("evidenceLines drops blanks and indexes what survives", () => {
   const lines = evidenceLines("Mono Market\n\n  Total 189,000  \n");
 
   assert.deepEqual(lines, [
     { lineIndex: 0, text: "Mono Market" },
-    { lineIndex: 2, text: "Total 189,000" },
+    { lineIndex: 1, text: "Total 189,000" },
   ]);
 });
 
@@ -197,10 +198,12 @@ export interface OcrEvidence {
 export function evidenceLines(rawText: string): OcrEvidence[] {
   return rawText
     .split("\n")
-    // The index is assigned before filtering, so it still points at the raw
-    // document — an evidence line the caller cannot locate is not evidence.
-    .map((text, lineIndex) => ({ lineIndex, text: text.trim() }))
-    .filter((line) => line.text.length > 0);
+    .map((text) => text.trim())
+    .filter((text) => text.length > 0)
+    // The index is assigned after filtering, matching Dart's `.indexed` on the
+    // filtered iterable: it counts recognised lines, which is what the scanner's
+    // ocrLines[] is indexed by too.
+    .map((text, lineIndex) => ({ lineIndex, text }));
 }
 ```
 
@@ -252,6 +255,10 @@ test("parseDate ignores a short date embedded in a longer identifier", () => {
   assert.equal(parseDate("78901234567890123456"), null);
 });
 
+test("parseDate skips a calendar-invalid match and takes the valid one beside it", () => {
+  assert.deepEqual(parseDate("2026-02-31 승인 2026-07-01"), new Date(2026, 6, 1));
+});
+
 test("selectDate skips expiry labels and future dates", () => {
   const reference = new Date(2026, 6, 20);
   const lines = evidenceLines("유효기간 2027-01-01\n2028-05-05\n2026-07-02 20:20:50\n");
@@ -274,8 +281,8 @@ Translate the Dart regular expressions literally. Dart's `caseSensitive: false` 
 // Ported from due_back/lib/due_back/service/receipt_analyzer.dart:9-17, 97-104.
 import type { OcrEvidence } from "./evidence.ts";
 
-const DATE_PATTERN =
-  /(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})일?|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/;
+const DATE_PATTERN_G =
+  /(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})일?|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?!\d)|(?<!\d)(\d{1,2})[-/](\d{1,2})[-/](\d{2})(?!\d)/g;
 const EXPIRY_LABEL = /(expir|\bexp\b|유효기간)/i;
 
 /** Rejects a date the calendar does not have — 2026-02-31 round-trips wrong. */
@@ -286,13 +293,22 @@ function calendarDate(year: number, month: number, day: number): Date | null {
   return valid ? date : null;
 }
 
-export function parseDate(text: string): Date | null {
-  const match = DATE_PATTERN.exec(text);
-  if (!match) return null;
+function dateFromMatch(match: RegExpMatchArray): Date | null {
   if (match[1]) return calendarDate(+match[1], +match[2], +match[3]);
   if (match[6]) return calendarDate(+match[6], +match[4], +match[5]);
   // A two-digit year is this century; receipts from 1926 are not in scope.
   return calendarDate(2000 + +match[9], +match[7], +match[8]);
+}
+
+export function parseDate(text: string): Date | null {
+  // Every match on the line, not just the first: an OCR-mangled date sitting
+  // before a real one must not blind the parser to the real one. Dart does the
+  // same at receipt_analyzer.dart:482-488.
+  for (const match of text.matchAll(DATE_PATTERN_G)) {
+    const date = dateFromMatch(match);
+    if (date !== null) return date;
+  }
+  return null;
 }
 
 export function selectDate(lines: OcrEvidence[], referenceDate: Date): OcrEvidence | null {
@@ -330,7 +346,7 @@ git commit -m "feat(contract): ✨ parse receipt dates and reject expiries"
 - Consumes: `OcrEvidence`.
 - Produces: `parseAmountMinor(text: string, currency: Currency): number | null` and `canUseAsAmount(line: OcrEvidence): boolean`.
 
-Port from `receipt_analyzer.dart:59-87` (`_trailingAmount`, `_amountPattern`, `_centsAmount`, `_clockTime`, `_splitGrouping`, `_maxWholeDigits`) and `:192-244` (`amountFrom`, `canUseAsAmount`). Three rules matter: a clock time is stripped before amounts are read, an OCR-split thousands separator (`13, 364`) is rejoined, and a digit run longer than 15 is an identifier rather than money.
+Port from `receipt_analyzer.dart:59-87` (`_trailingAmount`, `_amountPattern`, `_centsAmount`, `_clockTime`, `_splitGrouping`, `_maxWholeDigits`), `:192-197` (`amountFrom`, `canUseAsAmount` — thin wrappers), and **`:441-470`, where the actual work lives** (`_amountOf`, `_minorUnits`, `_withoutDateOrTime`). Note that `_amountOf` keeps the LAST amount on the line, not the first: `TOTAL 2 ITEMS $24.95` is 2495, not 2. Three rules matter: a clock time is stripped before amounts are read, an OCR-split thousands separator (`13, 364`) is rejoined, and a digit run longer than 15 is an identifier rather than money.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -440,10 +456,16 @@ test("selectTotal rejects a count row carrying no money", () => {
   assert.equal(selectTotal(lines, "USD"), null);
 });
 
-test("selectTotal does not read TAXI as a tax row", () => {
+test("selectTotal yields no evidence for a labelled fare row", () => {
+  // The no-label fallback accepts a row that is a currency-marked amount and
+  // NOTHING else, which is how `SUBTOTAL $20.00`, `TENDER $20.00` and
+  // `TAX $1.05` stay out (receipt_analyzer.dart:338-341). A fare row has the
+  // same shape, so it is excluded too and the receipt gets a total with no
+  // evidence line. That "TAXI" is not read as a tax row is a currency-inference
+  // claim, and Task 6 pins it.
   const lines = evidenceLines("TAXI FARE $12.99\n");
 
-  assert.equal(selectTotal(lines, "USD")?.text, "TAXI FARE $12.99");
+  assert.equal(selectTotal(lines, "USD"), null);
 });
 
 test("selectTotal pairs a total printed on the following line", () => {
@@ -516,6 +538,14 @@ test("inferCurrency reads 원 as currency only after an amount", () => {
 
   assert.equal(inferCurrency("합계 12,900원", money, money[0]), "KRW");
   assert.equal(inferCurrency("원두커피 $4.50", coffee, coffee[0]), "USD");
+});
+
+test("inferCurrency reads a fare row as USD — TAXI is not a tax row", () => {
+  // receipt_analyzer_test.dart:611-620 asserts exactly this and nothing else:
+  // `\btax\b` matches as a whole word, so TAXI never triggers the tax label.
+  const lines = evidenceLines("City Cabs\nTAXI FARE $12.99\n");
+
+  assert.equal(inferCurrency("City Cabs\nTAXI FARE $12.99", lines, null), "USD");
 });
 
 test("inferCurrency keeps a dotted date out of cents detection", () => {
@@ -804,7 +834,7 @@ Expected at first: failures on some receipts. Fix by comparing against the Dart 
 
 - [ ] **Step 4: Record the baseline**
 
-Write `docs/notes/corpus-baseline.md` with the per-field counts the suite proves: currency 12/12, purchaseDate 11/12, merchant 7/12, paidTotalMinor 7/12, reference 1/12, items 0/12. These numbers are quoted in the README and the spec, so they live in one file that the test can be re-run against.
+Write `docs/notes/corpus-baseline.md` with the per-field counts a real run produces, on BOTH axes: how often the parser returned a value, and how often that value matched the manifest. Measured 2026-08-19: currency 12/12 correct, purchaseDate 11/12, merchant returned 12 and correct 7, paidTotalMinor returned 12 and correct 7, reference 1/12, and items returned on 3 receipts — all three spurious. The earlier "items 0/12" claim counted manifest flags rather than parser output and did not survive measurement.
 
 - [ ] **Step 5: Commit**
 
@@ -829,7 +859,9 @@ export function excerptContainsValue(excerpt: string, value: number): boolean;
 export function verifyEvidence(excerpt: string, pageText: string): boolean;
 ```
 
-Port `excerptContainsValue` from `catfood-feeder/src/lib/source-extraction.ts:294-335`. It normalises NFKC, rejects the fraction slash, finds the first numeric token, handles decimal-comma forms, and checks the token's leading boundary.
+**Superseded 2026-08-22 — the port below was built as written, then removed.** A review probe ran the pipeline instead of reading it and found the ported rule could not do this job: it compared minor units against the excerpt's printed decimal (`excerptContainsValue("SANDWICH  12.99", 1299) === false`, so every honest USD amount was flagged, and half this corpus is English), and it required exactly one numeric token, which an ordinary row printing a quantity beside a price never satisfies. The same probe found strings and dates were never value-checked at all. `guards.ts` now exports `excerptContainsAmount` (reads a line with the parser's own `amountsOnLine`) and `excerptContainsText`, and `extract()` checks a date by re-parsing its cited line. The task text below is left as it was written, as the record of what was built.
+
+Port `excerptContainsValue` from `catfood-feeder/src/lib/source-extraction.ts:288-328`; its helpers `normalizeDecimalLiteral` and `DECIMAL_COMMA` live in a different file, `catfood-feeder/src/lib/excerpt-match.ts:6,12-31`, and are imported from there. It normalises NFKC, rejects the fraction slash, finds the first numeric token, handles decimal-comma forms, and checks the token's leading boundary.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -857,6 +889,16 @@ test("verifyEvidence rejects an excerpt absent from the page text", () => {
 
 test("verifyEvidence compares after NFKC normalisation", () => {
   assert.equal(verifyEvidence("１４，８００", "합계 14,800"), true);
+});
+
+test("a real excerpt carrying a value it never states is rejected", () => {
+  // The subtler hallucination, and the one catfood-feeder's guard was built for:
+  // the model quotes a line that genuinely exists and attaches a number that is
+  // not in it. verifyEvidence passes here — only excerptContainsValue catches it.
+  const page = "GS25\n합계 14,800\n";
+
+  assert.equal(verifyEvidence("합계 14,800", page), true);
+  assert.equal(excerptContainsValue("합계 14,800", 13000), false);
 });
 
 test("a fabricated model value cannot pass the guard", () => {
@@ -1046,7 +1088,7 @@ git commit -m "feat(contract): ✨ anchor an evidence excerpt to its OCR box"
 - Modify: `packages/contract/package.json` (add `zod@4.4.3`)
 
 **Interfaces:**
-- Consumes: `Currency`.
+- Consumes: nothing. In particular NOT `Currency` — `inferCurrency` always returns a concrete value, so currency is never a field the parser leaves empty and the model is never asked for it. An earlier version of this line said otherwise and produced a schema branch that could not fire.
 - Produces: `ModelReplySchema` (zod), `type ModelReply = z.infer<typeof ModelReplySchema>`, and `modelJsonSchema()` returning the JSON Schema the API is handed.
 
 One definition produces the runtime validator, the TypeScript type, and the JSON Schema. Writing the JSON Schema by hand alongside the type is the drift this task exists to prevent.
@@ -1074,6 +1116,21 @@ test("the schema accepts a fully evidenced reply", () => {
   };
 
   assert.equal(ModelReplySchema.safeParse(reply).success, true);
+});
+
+test("a reply carrying an invented field is rejected, not silently stripped", () => {
+  // zod emits `additionalProperties: false` from toJSONSchema even without
+  // .strict(), so asserting the emitted schema pins nothing about the runtime
+  // choice. This exercises it. `confidence` is the fixture on purpose: it is
+  // what a model volunteers, and this project refuses to carry one.
+  const reply = {
+    items: [
+      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+    ],
+    confidence: 0.91,
+  };
+
+  assert.equal(ModelReplySchema.safeParse(reply).success, false);
 });
 
 test("the JSON schema handed to the model matches the zod definition", () => {
@@ -1116,7 +1173,7 @@ git commit -m "feat(contract): ✨ define the model reply schema once, in zod"
 - Create: `apps/web/test/extract.test.ts`, `docs/notes/model-identifier.md`
 
 **Interfaces:**
-- Consumes: `analyze`, `verifyEvidence`, `excerptContainsValue`, `checkArithmetic`, `anchorToLines`, `ModelReplySchema`.
+- Consumes: `analyze`, `verifyEvidence`, `excerptContainsAmount`, `excerptContainsText`, `checkArithmetic`, `anchorToLines`, `ModelReplySchema`.
 - Produces: `POST /api/extract` taking `{ pages: [{ text, lines, imageBase64? }] }` and returning the `ExtractionResponse` from the spec. `ModelClient` is an interface with one method, so tests substitute a fake and never call OpenAI.
 
 - [ ] **Step 1: Record the model identifier from official documentation**
@@ -1206,6 +1263,22 @@ Expected: PASS, all three extraction tests.
 git add apps/web docs/notes/model-identifier.md pnpm-lock.yaml
 git commit -m "feat(web): ✨ extract a receipt through the parser, the model, and the guards"
 ```
+
+---
+
+### Task 14b: The image fallback
+
+**Files:**
+- Modify: `apps/web/src/model-client.ts`, `apps/web/src/extract.ts`
+- Test: `apps/web/test/model-client.test.ts`
+
+**Interfaces:**
+- Consumes: `Page.imageBase64` — already declared and already sent by the demo page.
+- Produces: a request that carries the page's image when one is present, and does not when it is not.
+
+Added after Task 15 found that `imageBase64` was declared, populated by the caller, and read by nothing. The spec's pipeline has the app attach a JPEG only for a page below the OCR floor; the client must therefore transmit it when present. Without this the floor decision is decoration and the spec describes a path the code does not have.
+
+The test uses a fake client and asserts both directions: a page carrying `imageBase64` produces a request containing the image, and a page without one produces a request that does not. Assert on what the client sends, not on what a model replies — no test in this repository makes a network call.
 
 ---
 

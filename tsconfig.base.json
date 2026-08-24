@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "exclude": ["apps/mobile"],
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.test.ts",
+    "apps/*/src/**/*.ts",
+    "apps/*/app/**/*.ts",
+    "apps/*/app/**/*.tsx",
+    "apps/*/test/**/*.test.ts"
+  ]
+}

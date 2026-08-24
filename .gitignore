@@ -1,0 +1,9 @@
+node_modules/
+.next/
+next-env.d.ts
+.expo/
+.superpowers/
+*.tsbuildinfo
+.DS_Store
+.env*
+!.env.example
