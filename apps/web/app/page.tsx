@@ -119,6 +119,10 @@ function FieldRow({ label, field }: { label: string; field: ExtractedField<strin
  * overlay on top of the image, each keyed to the value it came from. */
 interface BoxEntry {
   path: string;
+  /** Which page's photo this box belongs on. Boxes are anchored against one
+   * page's OCR geometry, so painting one on another page's image would point
+   * the reader at unrelated text (issue #2). */
+  pageIndex: number;
   box: Frame;
   verified: boolean;
 }
@@ -126,7 +130,9 @@ interface BoxEntry {
 function collectBoxes(result: ExtractionResponse): BoxEntry[] {
   const boxes: BoxEntry[] = [];
   const push = (path: string, field: ExtractedField<unknown> | undefined) => {
-    if (field?.evidence.box) boxes.push({ path, box: field.evidence.box, verified: field.verified });
+    if (field?.evidence.box) {
+      boxes.push({ path, pageIndex: field.evidence.pageIndex, box: field.evidence.box, verified: field.verified });
+    }
   };
   push("merchant", result.fields.merchant);
   push("purchaseDate", result.fields.purchaseDate);
@@ -134,16 +140,33 @@ function collectBoxes(result: ExtractionResponse): BoxEntry[] {
   push("reference", result.fields.reference);
   result.items.forEach((item, index) => {
     if (item.nameEvidence.box) {
-      boxes.push({ path: `item[${index}] ${item.name} (name)`, box: item.nameEvidence.box, verified: item.verified });
+      boxes.push({
+        path: `item[${index}] ${item.name} (name)`,
+        pageIndex: item.nameEvidence.pageIndex,
+        box: item.nameEvidence.box,
+        verified: item.verified,
+      });
     }
     // A receipt that prints name and amount on one line cites it twice; one
     // box is enough there, and a second would just double the border.
     if (item.amountEvidence.box && !sameEvidence(item.nameEvidence, item.amountEvidence)) {
-      boxes.push({ path: `item[${index}] ${item.name} (amount)`, box: item.amountEvidence.box, verified: item.verified });
+      boxes.push({
+        path: `item[${index}] ${item.name} (amount)`,
+        pageIndex: item.amountEvidence.pageIndex,
+        box: item.amountEvidence.box,
+        verified: item.verified,
+      });
     }
   });
   result.tenders.forEach((tender, index) => {
-    if (tender.evidence.box) boxes.push({ path: `tender[${index}]`, box: tender.evidence.box, verified: tender.verified });
+    if (tender.evidence.box) {
+      boxes.push({
+        path: `tender[${index}]`,
+        pageIndex: tender.evidence.pageIndex,
+        box: tender.evidence.box,
+        verified: tender.verified,
+      });
+    }
   });
   return boxes;
 }
@@ -179,80 +202,138 @@ function ArithmeticVerdict({ arithmetic }: { arithmetic: ExtractionResponse["ari
   );
 }
 
-export default function Page() {
-  const [ocrText, setOcrText] = useState("");
-  const [linesText, setLinesText] = useState("");
-  const [image, setImage] = useState<ImageInfo | null>(null);
+/** One page's inputs. A multi-page scan is a list of these, and the LIST
+ * INDEX is the request's pageIndex — the same rule the mobile app follows, so
+ * every `page N` in the result points back at the Nth block on this form. */
+interface PageInput {
+  /** Stable key for React and input ids — list indices shift when a page is
+   * removed, and a shifted key would hand page B's image state to page A. */
+  id: number;
+  ocrText: string;
+  linesText: string;
+  image: ImageInfo | null;
   // Sending the photo is opt-in, and clearing the file clears the consent
   // with it — a checkbox left ticked from a previous upload must not carry
   // over to the next one.
-  const [sendImage, setSendImage] = useState(false);
-  // Which file selection is current. A ref, not state: it has to be readable
-  // by an async continuation that started before the newer selection existed,
-  // and bumping it must not re-render.
-  const selectionCounter = useRef(0);
+  sendImage: boolean;
+}
+
+export default function Page() {
+  const [pageInputs, setPageInputs] = useState<PageInput[]>([
+    { id: 0, ocrText: "", linesText: "", image: null, sendImage: false },
+  ]);
+  const nextPageId = useRef(1);
+  // Which file selection is current, PER page. A ref, not state: it has to be
+  // readable by an async continuation that started before the newer selection
+  // existed, and bumping it must not re-render.
+  const selectionCounters = useRef(new Map<number, number>());
+  // Which page STRUCTURE an in-flight extraction was posted against. Clearing
+  // `result` on removal is not enough: a request already running completes
+  // afterwards and `setResult` restores a response whose page indices use the
+  // OLD numbering — boxes then land on the wrong photos. Bumped by anything
+  // that renumbers or re-images pages; a response is dropped when its
+  // captured revision is no longer current.
+  const requestRevision = useRef(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractionResponse | null>(null);
 
-  const { lines, error: linesError } = useMemo(() => parseLines(linesText), [linesText]);
+  const parsedLines = useMemo(() => pageInputs.map((page) => parseLines(page.linesText)), [pageInputs]);
   const boxes = useMemo(() => (result ? collectBoxes(result) : []), [result]);
 
-  async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+  function updatePage(id: number, patch: Partial<PageInput>) {
+    setPageInputs((pages) => pages.map((page) => (page.id === id ? { ...page, ...patch } : page)));
+  }
+
+  function addPage() {
+    // Adding a page does not renumber anything, but the shown result — and
+    // any response still in flight — describes a document with FEWER pages
+    // than the form now shows, which misreads as the current document's
+    // extraction. Same rule as removal: structure changed, results are stale.
+    requestRevision.current += 1;
+    setResult(null);
+    const id = nextPageId.current++;
+    setPageInputs((pages) => [...pages, { id, ocrText: "", linesText: "", image: null, sendImage: false }]);
+  }
+
+  function removePage(id: number) {
+    // Removing a page renumbers every page after it, and the result's boxes
+    // and `page N` references were computed against the OLD numbering — a
+    // stale result would paint them on the wrong photos. Both the shown
+    // result and any request still in flight are stale.
+    requestRevision.current += 1;
+    setResult(null);
+    setPageInputs((pages) => pages.filter((page) => page.id !== id));
+  }
+
+  async function handleImageChange(id: number, event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    // Everything tied to the OLD image goes first, before the async decode:
-    // the consent, the image itself, and the result whose boxes were computed
-    // against it. Resetting only on the clear and error paths left two holes —
-    // a checkbox ticked for photo A authorised photo B, and a result rendered
-    // for A repainted its boxes onto B's pixels while decoding.
-    setImage(null);
-    setSendImage(false);
+    // Superseding the previous selection comes FIRST, before any early
+    // return: clearing the file input must also invalidate a decode still in
+    // flight, or image A completes after the clear and restores its preview.
+    // Decoding is asynchronous and a superseded selection still resolves —
+    // pick photo A, then photo B before A finishes, and A's write lands
+    // afterwards. Only the newest selection may write.
+    const selection = (selectionCounters.current.get(id) ?? 0) + 1;
+    selectionCounters.current.set(id, selection);
+    // Everything tied to the OLD image goes next, still before the async
+    // decode: the consent, the image itself, and the result (shown OR in
+    // flight) whose boxes were computed against it. Resetting only on the
+    // clear and error paths left two holes — a checkbox ticked for photo A
+    // authorised photo B, and a result rendered for A repainted its boxes
+    // onto B's pixels while decoding.
+    requestRevision.current += 1;
+    updatePage(id, { image: null, sendImage: false });
     setResult(null);
     if (!file) return;
-    // Clearing up front is not enough on its own: decoding is asynchronous and
-    // a superseded selection still resolves. Pick photo A, then photo B before
-    // A finishes, and A's `setImage` lands afterwards — the page then shows A
-    // while the file input says B, which is the consent bug wearing a
-    // different hat. Only the newest selection may write.
-    const selection = (selectionCounter.current += 1);
     // Both helpers reject — an unreadable file, an undecodable image (a HEIC
     // on a browser without support, a truncated download). Uncaught, the
-    // rejection was silent and `image` kept its previous value, so the next
+    // rejection was silent and the image kept its previous value, so the next
     // extraction drew boxes over the wrong photo.
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const { width, height } = await loadImage(dataUrl);
-      if (selectionCounter.current !== selection) return;
-      setImage({ dataUrl, naturalWidth: width, naturalHeight: height });
+      if (selectionCounters.current.get(id) !== selection) return;
+      updatePage(id, { image: { dataUrl, naturalWidth: width, naturalHeight: height } });
       setError(null);
     } catch (err) {
-      if (selectionCounter.current !== selection) return;
+      if (selectionCounters.current.get(id) !== selection) return;
       setError(`could not read that image: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (ocrText.trim() === "") {
+    if (pageInputs.every((page) => page.ocrText.trim() === "")) {
       setError("paste OCR text first — the pipeline has nothing to parse without it");
       return;
     }
-    if (linesError) {
-      setError(`OCR lines JSON is invalid: ${linesError}`);
+    const badLines = parsedLines.findIndex((parsed) => parsed.error !== null);
+    if (badLines !== -1) {
+      setError(`page ${badLines}: OCR lines JSON is invalid: ${parsedLines[badLines]?.error ?? ""}`);
       return;
     }
     setLoading(true);
     setError(null);
     setResult(null);
+    // The page structure this request is being posted against. If it changes
+    // while the request runs, the response's page indices describe pages that
+    // no longer exist in that order — drop it rather than paint it.
+    const revision = requestRevision.current;
     try {
       const response = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          pages: [{ text: ocrText, lines, imageDataUrl: sendImage ? image?.dataUrl : undefined }],
+          pages: pageInputs.map((page, index) => ({
+            text: page.ocrText,
+            lines: parsedLines[index]?.lines ?? [],
+            imageDataUrl: page.sendImage ? page.image?.dataUrl : undefined,
+          })),
         }),
       });
       const body: unknown = await response.json();
+      if (requestRevision.current !== revision) return;
       if (!response.ok) {
         const message = typeof body === "object" && body !== null && "error" in body ? String((body as { error: unknown }).error) : response.statusText;
         setError(message);
@@ -260,6 +341,7 @@ export default function Page() {
       }
       setResult(body as ExtractionResponse);
     } catch (err) {
+      if (requestRevision.current !== revision) return;
       setError(err instanceof Error ? err.message : "request failed");
     } finally {
       setLoading(false);
@@ -276,48 +358,80 @@ export default function Page() {
       </p>
 
       <form onSubmit={(event) => void handleSubmit(event)}>
-        <label htmlFor="ocr-text">OCR text</label>
-        <textarea
-          id="ocr-text"
-          value={ocrText}
-          onChange={(event) => setOcrText(event.target.value)}
-          rows={10}
-          placeholder="paste the receipt's OCR text here"
-        />
+        {pageInputs.map((page, pageIndex) => (
+          <fieldset key={page.id} className="page-input">
+            {/* Numbered from 0 because that is the number the results speak:
+                every evidence reference below says "page N" in this same
+                numbering, and a scan is one document read page 0 first. */}
+            <legend>
+              Page {pageIndex}
+              {pageInputs.length > 1 && (
+                <button type="button" className="remove-page" onClick={() => removePage(page.id)}>
+                  remove
+                </button>
+              )}
+            </legend>
 
-        <label htmlFor="receipt-image">Receipt image (optional — the backdrop the evidence boxes are drawn on)</label>
-        <input id="receipt-image" type="file" accept="image/*" onChange={(event) => void handleImageChange(event)} />
+            <label htmlFor={`ocr-text-${page.id}`}>OCR text</label>
+            <textarea
+              id={`ocr-text-${page.id}`}
+              value={page.ocrText}
+              onChange={(event) => updatePage(page.id, { ocrText: event.target.value })}
+              rows={10}
+              placeholder="paste this page's OCR text here"
+            />
 
-        <label htmlFor="send-image" className="checkbox">
-          <input
-            id="send-image"
-            type="checkbox"
-            checked={sendImage}
-            disabled={image === null}
-            onChange={(event) => setSendImage(event.target.checked)}
-          />
-          Also send the photo to the model — the image fallback, for text too poor to read. Off by default:
-          uploading it is the one thing here that sends your receipt&apos;s picture off this machine, and the app
-          does it only for a page below the OCR floor.
-        </label>
+            <label htmlFor={`receipt-image-${page.id}`}>
+              Receipt image (optional — the backdrop this page&apos;s evidence boxes are drawn on)
+            </label>
+            <input
+              id={`receipt-image-${page.id}`}
+              type="file"
+              accept="image/*"
+              onChange={(event) => void handleImageChange(page.id, event)}
+            />
 
-        <label htmlFor="ocr-lines">
-          OCR lines JSON (optional, advanced) — <code>{"[{ text, frame: {x,y,width,height} }]"}</code> in the
-          image&apos;s own pixel space. Without this, evidence boxes cannot be anchored: /api/extract never runs
-          OCR itself.
-        </label>
-        <textarea
-          id="ocr-lines"
-          value={linesText}
-          onChange={(event) => setLinesText(event.target.value)}
-          rows={3}
-          placeholder="[]"
-        />
-        {linesError && <p className="form-error">{linesError}</p>}
+            <label htmlFor={`send-image-${page.id}`} className="checkbox">
+              <input
+                id={`send-image-${page.id}`}
+                type="checkbox"
+                checked={page.sendImage}
+                disabled={page.image === null}
+                onChange={(event) => updatePage(page.id, { sendImage: event.target.checked })}
+              />
+              Also send this page&apos;s photo to the model — the image fallback, for text too poor to read. Off
+              by default: uploading it is the one thing here that sends your receipt&apos;s picture off this
+              machine, and the app does it only for a page below the OCR floor.
+            </label>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Extracting…" : "Extract"}
-        </button>
+            <label htmlFor={`ocr-lines-${page.id}`}>
+              OCR lines JSON (optional, advanced) — <code>{"[{ text, frame: {x,y,width,height} }]"}</code> in
+              the image&apos;s own pixel space. Without this, evidence boxes cannot be anchored: /api/extract
+              never runs OCR itself.
+            </label>
+            <textarea
+              id={`ocr-lines-${page.id}`}
+              value={page.linesText}
+              onChange={(event) => updatePage(page.id, { linesText: event.target.value })}
+              rows={3}
+              placeholder="[]"
+            />
+            {parsedLines[pageIndex]?.error && <p className="form-error">{parsedLines[pageIndex]?.error}</p>}
+          </fieldset>
+        ))}
+
+        <div className="form-actions">
+          {/* The mobile scanner caps a scan at three pages; the demo mirrors
+              that rather than inventing a second limit. */}
+          {pageInputs.length < 3 && (
+            <button type="button" onClick={addPage}>
+              Add page
+            </button>
+          )}
+          <button type="submit" disabled={loading}>
+            {loading ? "Extracting…" : "Extract"}
+          </button>
+        </div>
       </form>
 
       {error && <p className="error-banner">{error}</p>}
@@ -333,28 +447,49 @@ export default function Page() {
             </p>
           )}
 
-          {image && (
-            <div className="image-frame" style={{ aspectRatio: `${image.naturalWidth} / ${image.naturalHeight}` }}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- data: URL, no remote loader needed */}
-              <img src={image.dataUrl} alt="uploaded receipt" />
-              {boxes.map((entry) => (
-                <div
-                  key={entry.path}
-                  className={entry.verified ? "box box-verified" : "box box-unverified"}
-                  title={entry.path}
-                  style={{
-                    left: `${(entry.box.x / image.naturalWidth) * 100}%`,
-                    top: `${(entry.box.y / image.naturalHeight) * 100}%`,
-                    width: `${(entry.box.width / image.naturalWidth) * 100}%`,
-                    height: `${(entry.box.height / image.naturalHeight) * 100}%`,
-                  }}
-                />
-              ))}
-            </div>
-          )}
-          {image && boxes.length === 0 && (
-            <p className="hint">No evidence anchored to a line — supply OCR lines JSON above to see boxes.</p>
-          )}
+          {/* One frame per page that has a photo, each painted only with ITS
+              page's boxes (issue #2) — a box is anchored against one page's
+              OCR geometry, and on any other image it would point the reader
+              at unrelated text. */}
+          {pageInputs.map((page, pageIndex) => {
+            const { image } = page;
+            if (image === null) return null;
+            return (
+              <div
+                key={page.id}
+                className="image-frame"
+                style={{ aspectRatio: `${image.naturalWidth} / ${image.naturalHeight}` }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- data: URL, no remote loader needed */}
+                <img src={image.dataUrl} alt={`uploaded receipt page ${pageIndex}`} />
+                {boxes
+                  .filter((entry) => entry.pageIndex === pageIndex)
+                  .map((entry) => (
+                    <div
+                      key={entry.path}
+                      className={entry.verified ? "box box-verified" : "box box-unverified"}
+                      title={entry.path}
+                      style={{
+                        left: `${(entry.box.x / image.naturalWidth) * 100}%`,
+                        top: `${(entry.box.y / image.naturalHeight) * 100}%`,
+                        width: `${(entry.box.width / image.naturalWidth) * 100}%`,
+                        height: `${(entry.box.height / image.naturalHeight) * 100}%`,
+                      }}
+                    />
+                  ))}
+              </div>
+            );
+          })}
+          {/* The hint speaks for the frames actually shown: a box anchored on
+              a page WITHOUT an uploaded photo is never rendered, so counting
+              it would suppress the only explanation for a photo'd page whose
+              frame is blank. */}
+          {pageInputs.some((page) => page.image !== null) &&
+            !boxes.some((entry) => pageInputs[entry.pageIndex]?.image != null) && (
+              <p className="hint">
+                No evidence anchored to a displayed page — supply OCR lines JSON above to see boxes.
+              </p>
+            )}
 
           <section className="fields">
             <h2>Fields</h2>

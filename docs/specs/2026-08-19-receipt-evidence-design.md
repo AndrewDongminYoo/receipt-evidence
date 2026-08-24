@@ -69,7 +69,7 @@ Its tests need no network and no device.
    It is never silently dropped and never presented as fact.
    Dropping it would hide the interesting half of the demo; presenting it would be the exact failure this project exists to prevent.
 6. **Anchoring (server).** Each surviving excerpt is matched back to `ocrLines` to recover its bounding box.
-7. **Presentation (app and web).** The mobile app receives `ocrLines` from its scanner and draws a box over each anchored field. The web demo accepts separately supplied OCR-line geometry and draws boxes only when that geometry is present. Both surfaces mark unverified values and show arithmetic mismatches rather than silently correcting them.
+7. **Presentation (app and web).** The mobile app receives `ocrLines` from its scanner and draws a box over each anchored field; every captured page is shown, each carrying only the boxes whose evidence names that page. The web demo accepts up to three page blocks of separately supplied OCR text and OCR-line geometry, and draws boxes per page only when that geometry is present. Both surfaces mark unverified values and show arithmetic mismatches rather than silently correcting them.
 
 ### Response shape
 
