@@ -16,10 +16,18 @@ test("selectTotal ignores a gift-certificate payment that follows the card payme
 });
 
 test("selectTotal ignores card-payment metadata that follows the total", () => {
-  for (const metadata of ["Reference 1234", "Balance $5.00", "Fee $0.25"]) {
+  for (const metadata of ["Reference 1234", "Authorization 1234", "Approval Code 1234", "Balance $5.00", "Fee $0.25"]) {
     const lines = evidenceLines(`TOTAL $12.99\nCredit Card Payment ${metadata}\n`);
 
     assert.equal(selectTotal(lines, "USD")?.text, "TOTAL $12.99", metadata);
+  }
+});
+
+test("selectTotal ignores authorization metadata when the total has no label", () => {
+  for (const metadata of ["Authorization 1234", "Approval Code 1234"]) {
+    const lines = evidenceLines(`$10.00\nCredit Card Payment ${metadata}\n`);
+
+    assert.equal(selectTotal(lines, "USD")?.text, "$10.00", metadata);
   }
 });
 
