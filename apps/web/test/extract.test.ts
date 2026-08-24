@@ -591,6 +591,72 @@ test("one printed line cannot back two split items' halves", async () => {
   assert.deepEqual(result.unverified, ["items[0]", "items[1]"]);
 });
 
+test("a crossed pairing across pages is demoted — the scan is one ordered document", async () => {
+  // Codex P1 (round 3) on PR #5: a page-equality guard skipped the ordering
+  // check for items whose halves sit on different pages, so pairing page 0's
+  // name with page 1's amount (and vice versa) passed everything. Positions
+  // compare as (pageIndex, lineIndex), the same way the parser reads the
+  // scan: one document, pages in order.
+  const pages = [
+    { text: "곤약젤리복숭아\n1,900\n", lines: [] },
+    { text: "최강록명란\n1,700\n", lines: [] },
+  ];
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1700,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 1, excerpt: "1,700" },
+        },
+        {
+          name: "최강록명란",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 1, excerpt: "최강록명란" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, false);
+  assert.equal(result.items[1]?.verified, false);
+  assert.ok(result.unverified.includes("items[0]") && result.unverified.includes("items[1]"));
+});
+
+test("split items in page order verify across a multi-page scan", async () => {
+  // The demotion above must not reject the honest multi-page reading: each
+  // item's halves in document order, page 0's item before page 1's.
+  const pages = [
+    { text: "곤약젤리복숭아\n1,900\n", lines: [] },
+    { text: "최강록명란\n1,700\n", lines: [] },
+  ];
+  const client = {
+    complete: async () => ({
+      items: [
+        {
+          name: "곤약젤리복숭아",
+          amountMinor: 1900,
+          nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+          amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+        },
+        {
+          name: "최강록명란",
+          amountMinor: 1700,
+          nameEvidence: { pageIndex: 1, excerpt: "최강록명란" },
+          amountEvidence: { pageIndex: 1, excerpt: "1,700" },
+        },
+      ],
+    }),
+  };
+  const result = await extract({ pages }, client, new Date(2026, 7, 24));
+
+  assert.equal(result.items[0]?.verified, true);
+  assert.equal(result.items[1]?.verified, true);
+});
+
 test("two items OCR merged onto one line are distinct claims, not reuse", async () => {
   // Codex P2 on PR #5: when OCR merges two item rows into one text line, both
   // items' halves resolve to the same line index. Equal positions are reuse

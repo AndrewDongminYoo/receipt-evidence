@@ -237,9 +237,9 @@ function buildItem(
  * clients would present the crossed association under a verified badge.
  *
  * Column flattening preserves row order — that is what makes the columns
- * columns — so among the items citing split evidence on the same pages, the
- * name lines and the amount lines must agree on the items' order, and one
- * printed excerpt cannot back two items' halves. An item whose excerpt the page
+ * columns — so among the items citing split evidence, the name positions and
+ * the amount positions must agree on the items' order, and one printed
+ * excerpt cannot back two items' halves. An item whose excerpt the page
  * cannot place unambiguously contributes nothing here (the same rule as the
  * anchor: two runs mean no answer); a single split item likewise has nothing
  * to be ordered against. The pairwise check is the strongest binding the
@@ -258,13 +258,19 @@ function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unve
     if (nameLine === null || amountLine === null) return [];
     return [{ index, name: nameEvidence, amount: amountEvidence, nameLine, amountLine }];
   });
+  // Positions compare as (pageIndex, lineIndex) — the scan is ONE ordered
+  // document (extract() joins every page for the parser for the same reason),
+  // so a name on page 0 paired with an amount on page 1 still has a place in
+  // the ordering, and a crossing between pages is as impossible on paper as
+  // one within a page.
+  const compare = (page: number, line: number, otherPage: number, otherLine: number) =>
+    Math.sign(page - otherPage) || Math.sign(line - otherLine);
   const demoted = new Set<number>();
   for (const a of split) {
     for (const b of split) {
       if (a.index >= b.index) continue;
-      if (a.name.pageIndex !== b.name.pageIndex || a.amount.pageIndex !== b.amount.pageIndex) continue;
-      const nameOrder = Math.sign(a.nameLine - b.nameLine);
-      const amountOrder = Math.sign(a.amountLine - b.amountLine);
+      const nameOrder = compare(a.name.pageIndex, a.nameLine, b.name.pageIndex, b.nameLine);
+      const amountOrder = compare(a.amount.pageIndex, a.amountLine, b.amount.pageIndex, b.amountLine);
       // An equal line position is reuse only when the cited excerpt itself is
       // shared: OCR can merge two item rows into ONE text line, and two
       // distinct excerpts there are the receipt genuinely printing two
