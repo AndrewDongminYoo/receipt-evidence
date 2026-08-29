@@ -176,3 +176,42 @@ test("the response schema rejects money that is not an integer minor unit", () =
 
   assert.equal(ExtractionResponseSchema.safeParse(withFractionalSum).success, false);
 });
+
+test("the response schema rejects evidence no one could have read a value from", () => {
+  // The failure this project exists to prevent, one level out from the guard:
+  // every string contains "", so a response that attaches an empty excerpt to a
+  // verified: true field would have both clients present a fact with no
+  // evidence behind it. verifyEvidence fails closed on it; so does this.
+  for (const emptyish of ["", "   ", "\n\t"]) {
+    const response = aResponse() as { fields: { merchant?: { evidence: { excerpt: string } } } };
+    (response.fields.merchant as { evidence: { excerpt: string } }).evidence.excerpt = emptyish;
+
+    assert.equal(ExtractionResponseSchema.safeParse(response).success, false, JSON.stringify(emptyish));
+  }
+});
+
+test("the response schema rejects a purchase date that is not an ISO calendar date", () => {
+  for (const notADate of ["yesterday", "2026-99-99", "2026/06/05", ""]) {
+    const response = aResponse() as { fields: { purchaseDate?: unknown } };
+    response.fields.purchaseDate = {
+      value: notADate,
+      source: "parser",
+      evidence: { pageIndex: 0, excerpt: "[판매] 2026-06-05", box: null },
+      verified: true,
+    };
+
+    assert.equal(ExtractionResponseSchema.safeParse(response).success, false, notADate);
+  }
+});
+
+test("the response schema rejects an empty merchant or item name", () => {
+  const emptyMerchant = aResponse() as { fields: { merchant?: { value: string } } };
+  (emptyMerchant.fields.merchant as { value: string }).value = "";
+
+  assert.equal(ExtractionResponseSchema.safeParse(emptyMerchant).success, false);
+
+  const emptyName = aResponse() as { items: { name: string }[] };
+  emptyName.items[0].name = "";
+
+  assert.equal(ExtractionResponseSchema.safeParse(emptyName).success, false);
+});
