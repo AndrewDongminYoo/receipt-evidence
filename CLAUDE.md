@@ -63,6 +63,6 @@ Nine defects on this project were tests or gates that passed while proving nothi
 The local code implements the parser and corpus gate, guards, arithmetic, anchoring, schema, `/api/extract`, web demo, image fallback, Expo app, README, and CI.
 `pnpm test` and `pnpm typecheck` verify local code only; they do not establish visual, device, or hosted-demo acceptance.
 
-**Outstanding acceptance work:** Task 15's manual browser pass and Task 16 Step 4's camera pass have no recorded repository evidence. Step 4's gallery pass does: PR #7 ran it on the operator's iPhone against a real receipt, both for an ordinary extraction and for a 200 that is not one. A device pass writes to his daily phone, so it needs explicit authorisation for each device operation. Task 17's hosted demo link is not implemented because no deployment target is configured.
+**Outstanding acceptance work:** Task 15's manual browser pass has no recorded repository evidence. Task 16 Step 4 now does, both halves, run on the operator's iPhone 16 Pro on 2026-08-29: the gallery path against a single-page receipt, in the ordinary direction and against a 200 that is not an extraction; the camera path against a three-page 20-item receipt, whose response the clients' schema parsed on the device. A device pass writes to his daily phone, so it needs explicit authorisation for each device operation. Task 17's hosted demo link is not implemented because no deployment target is configured.
 
 Remote branches are dynamic state, not durable repository guidance. Inspect them with `git branch -r` when needed.
