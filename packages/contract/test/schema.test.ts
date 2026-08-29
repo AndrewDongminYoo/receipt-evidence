@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ModelReplySchema, modelJsonSchema } from "../src/schema.ts";
+import { z } from "zod";
+import { ExtractionResponseSchema, ModelReplySchema, modelJsonSchema } from "../src/schema.ts";
+import type { ExtractionResponse } from "../src/response.ts";
 
 test("the schema requires evidence on every value", () => {
   const withoutEvidence = { items: [{ name: "커피", quantity: 1, amountMinor: 4500 }] };
@@ -84,4 +86,70 @@ test("a reply carrying an invented field is rejected, not silently stripped", ()
   };
 
   assert.equal(ModelReplySchema.safeParse(reply).success, false);
+});
+
+// --- ExtractionResponseSchema ------------------------------------------------
+
+function aResponse(): unknown {
+  const evidence = { pageIndex: 0, excerpt: "커피 4,500", box: { x: 1, y: 2, width: 3, height: 4 } };
+  return {
+    fields: {
+      merchant: { value: "GS25", source: "parser", evidence: { ...evidence, box: null }, verified: true },
+      currency: "KRW",
+    },
+    items: [
+      {
+        name: "커피",
+        quantity: 1,
+        amountMinor: 4500,
+        source: "model",
+        nameEvidence: evidence,
+        amountEvidence: evidence,
+        verified: true,
+      },
+    ],
+    tenders: [],
+    arithmetic: { itemSumMinor: 4500, claimedTotalMinor: 4500, reconciledTenderMinor: null, agrees: true },
+    unverified: [],
+    disagreements: [],
+    modelReply: { accepted: true },
+  };
+}
+
+test("the response schema accepts what the endpoint emits", () => {
+  assert.equal(ExtractionResponseSchema.safeParse(aResponse()).success, true);
+});
+
+// The assignments below are the real assertion and they are checked by
+// `pnpm typecheck`, not by node: the schema and the hand-written interface must
+// describe the same shape in BOTH directions. One direction alone is vacuous in
+// the loose one, which is how a schema quietly stops describing the response.
+test("the response schema and ExtractionResponse describe the same shape", () => {
+  const parsed = ExtractionResponseSchema.parse(aResponse());
+  const asInterface: ExtractionResponse = parsed;
+  const asSchema: z.infer<typeof ExtractionResponseSchema> = asInterface;
+
+  assert.equal(asSchema.fields.currency, "KRW");
+});
+
+test("the response schema rejects a body the renderer would crash on", () => {
+  // The shape another service on the guessed port returns: JSON, 200, and
+  // nothing the renderer can map over.
+  const notAnExtraction = { ...(aResponse() as Record<string, unknown>), items: { count: 1 } };
+
+  assert.equal(ExtractionResponseSchema.safeParse(notAnExtraction).success, false);
+  assert.equal(ExtractionResponseSchema.safeParse({ status: "ok" }).success, false);
+});
+
+test("the response schema accepts, and strips, a field an older client does not know about", () => {
+  // Not .strict(): a server that adds a field must not blank the whole screen.
+  // Accepted is not the same as carried through — z.object() strips what it
+  // does not declare, so an older client renders the parts it understands and
+  // never sees the new field. Both halves are the contract.
+  const withNewField = { ...(aResponse() as Record<string, unknown>), futureField: 1 };
+
+  const parsed = ExtractionResponseSchema.safeParse(withNewField);
+
+  assert.equal(parsed.success, true);
+  assert.equal("futureField" in (parsed.data ?? {}), false);
 });

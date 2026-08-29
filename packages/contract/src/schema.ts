@@ -83,3 +83,82 @@ type ObjectJsonSchema = {
 export function modelJsonSchema(): ObjectJsonSchema {
   return z.toJSONSchema(ModelReplySchema) as ObjectJsonSchema;
 }
+
+// --- The endpoint's own response --------------------------------------------
+//
+// `/api/extract`'s reply is the clients' trust boundary, not a formality: the
+// mobile app does not know its server's address, it GUESSES it (api.ts —
+// `http://<devServerHost>:3000`). Any other service listening on that port on
+// the same network answers 200 with JSON, and `body as ExtractionResponse`
+// then hands the renderer an object whose `items` is not an array, which
+// throws inside render rather than failing as a request.
+//
+// Deliberately NOT `.strict()`, unlike ModelReplySchema above. There, an
+// invented field is the hallucination the guard exists to reject. Here the
+// sender is our own server, and rejecting an unknown key would mean that the
+// day the endpoint adds a field, every client built before it refuses the
+// whole response and shows a failure instead of rendering the parts it does
+// understand. Unknown keys are stripped, known ones are checked.
+
+const frameSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+
+const evidenceRefSchema = z.object({
+  pageIndex: z.int().nonnegative(),
+  excerpt: z.string(),
+  box: frameSchema.nullable(),
+});
+
+const fieldSourceSchema = z.enum(["parser", "model"]);
+
+/** The response counterpart of `evidenced()`: the {value, source, evidence,
+ * verified} shape every reported field takes, whichever side derived it. */
+function extracted<T extends z.ZodType>(value: T) {
+  return z.object({
+    value,
+    source: fieldSourceSchema,
+    evidence: evidenceRefSchema,
+    verified: z.boolean(),
+  });
+}
+
+export const ExtractionResponseSchema = z.object({
+  fields: z.object({
+    merchant: extracted(z.string()).optional(),
+    purchaseDate: extracted(z.string()).optional(),
+    paidTotal: extracted(z.number()).optional(),
+    reference: extracted(z.string()).optional(),
+    currency: z.enum(["KRW", "USD"]),
+  }),
+  items: z.array(
+    z.object({
+      name: z.string(),
+      quantity: z.number().optional(),
+      amountMinor: z.number(),
+      source: fieldSourceSchema,
+      nameEvidence: evidenceRefSchema,
+      amountEvidence: evidenceRefSchema,
+      verified: z.boolean(),
+    }),
+  ),
+  tenders: z.array(extracted(z.number())),
+  arithmetic: z.object({
+    itemSumMinor: z.number().nullable(),
+    claimedTotalMinor: z.number().nullable(),
+    reconciledTenderMinor: z.number().nullable(),
+    // Three-state on purpose: `null` is "nothing to compare", not disagreement.
+    agrees: z.boolean().nullable(),
+  }),
+  unverified: z.array(z.string()),
+  disagreements: z.array(
+    z.object({ path: z.string(), parserValue: z.number(), modelValue: z.number() }),
+  ),
+  modelReply: z.discriminatedUnion("accepted", [
+    z.object({ accepted: z.literal(true) }),
+    z.object({ accepted: z.literal(false), reason: z.string() }),
+  ]),
+});
