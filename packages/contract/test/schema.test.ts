@@ -153,3 +153,26 @@ test("the response schema accepts, and strips, a field an older client does not 
   assert.equal(parsed.success, true);
   assert.equal("futureField" in (parsed.data ?? {}), false);
 });
+
+test("the response schema rejects money that is not an integer minor unit", () => {
+  // The contract says money is integer minor units and quantity a positive
+  // integer, and ModelReplySchema enforces exactly that one level upstream. A
+  // boundary that only asked "is a number" would let a mismatched server's
+  // 4500.5 won past the guard the model's own reply could never pass.
+  const withFractionalItem = aResponse() as { items: { amountMinor: number; quantity?: number }[] };
+  withFractionalItem.items[0].amountMinor = 4500.5;
+
+  assert.equal(ExtractionResponseSchema.safeParse(withFractionalItem).success, false);
+
+  for (const badQuantity of [0, -1, 1.5]) {
+    const response = aResponse() as { items: { quantity?: number }[] };
+    response.items[0].quantity = badQuantity;
+
+    assert.equal(ExtractionResponseSchema.safeParse(response).success, false, `quantity ${badQuantity}`);
+  }
+
+  const withFractionalSum = aResponse() as { arithmetic: { itemSumMinor: number | null } };
+  withFractionalSum.arithmetic.itemSumMinor = 4500.5;
+
+  assert.equal(ExtractionResponseSchema.safeParse(withFractionalSum).success, false);
+});

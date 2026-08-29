@@ -126,36 +126,41 @@ function extracted<T extends z.ZodType>(value: T) {
   });
 }
 
+/** Every amount is an integer minor unit and every quantity a positive integer,
+ * exactly as ModelReplySchema requires them one level upstream — a boundary
+ * that only checked "is a number" would let a mismatched server's fractional
+ * won through the guard the tighter schema applies to the model. The frame's
+ * coordinates stay plain numbers: pixel geometry really is fractional. */
 export const ExtractionResponseSchema = z.object({
   fields: z.object({
     merchant: extracted(z.string()).optional(),
     purchaseDate: extracted(z.string()).optional(),
-    paidTotal: extracted(z.number()).optional(),
+    paidTotal: extracted(z.int()).optional(),
     reference: extracted(z.string()).optional(),
     currency: z.enum(["KRW", "USD"]),
   }),
   items: z.array(
     z.object({
       name: z.string(),
-      quantity: z.number().optional(),
-      amountMinor: z.number(),
+      quantity: z.int().positive().optional(),
+      amountMinor: z.int(),
       source: fieldSourceSchema,
       nameEvidence: evidenceRefSchema,
       amountEvidence: evidenceRefSchema,
       verified: z.boolean(),
     }),
   ),
-  tenders: z.array(extracted(z.number())),
+  tenders: z.array(extracted(z.int())),
   arithmetic: z.object({
-    itemSumMinor: z.number().nullable(),
-    claimedTotalMinor: z.number().nullable(),
-    reconciledTenderMinor: z.number().nullable(),
+    itemSumMinor: z.int().nullable(),
+    claimedTotalMinor: z.int().nullable(),
+    reconciledTenderMinor: z.int().nullable(),
     // Three-state on purpose: `null` is "nothing to compare", not disagreement.
     agrees: z.boolean().nullable(),
   }),
   unverified: z.array(z.string()),
   disagreements: z.array(
-    z.object({ path: z.string(), parserValue: z.number(), modelValue: z.number() }),
+    z.object({ path: z.string(), parserValue: z.int(), modelValue: z.int() }),
   ),
   modelReply: z.discriminatedUnion("accepted", [
     z.object({ accepted: z.literal(true) }),
