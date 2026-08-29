@@ -14,9 +14,8 @@
 
 This plan retains the original task-by-task implementation record, including its unchecked historical process steps.
 The current code implements Tasks 1–14b, the Task 15 page, the Task 16 source, and the Task 17 README and CI workflow.
-The remaining acceptance work is a manual web pass and a hosted demo link.
-The manual web pass is unverified in repository evidence, and no hosted demo is currently linked or configured.
-The real-iPhone pass is done — both halves of Task 16 Step 4 ran on 2026-08-29; CLAUDE.md's "Current state" records what each covered.
+The remaining acceptance work is a hosted demo link, which is not currently linked or configured.
+Task 15's manual web pass and both halves of Task 16 Step 4's real-iPhone pass ran on 2026-08-29; CLAUDE.md's "Current state" records what each covered.
 
 ## Global Constraints
 
