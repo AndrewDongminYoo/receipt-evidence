@@ -1,20 +1,42 @@
 import { z } from "zod";
 
-// The page excerpt every model-supplied value must carry. Constrained to a
-// non-empty, non-whitespace string here as well as at guards.ts's
-// verifyEvidence: every string contains the empty string, so without this
-// check a schema-only defence would fail open on the plainest hallucination,
-// a model returning "". Two layers because the guard is also called from
-// paths this schema does not cover.
-const evidenceSchema = z
-  .object({
-    pageIndex: z.int().nonnegative(),
-    // .regex(/\S/) alone already rejects "" and whitespace-only strings;
-    // .min(1) is kept so the emitted JSON Schema also carries `minLength: 1`
-    // as a hint to the model, not because it adds a runtime constraint.
-    excerpt: z.string().min(1).regex(/\S/),
-  })
-  .strict();
+// --- Shared value constraints -----------------------------------------------
+//
+// Both boundaries in this file describe the same receipt facts: the model's
+// reply on the way in, the endpoint's response on the way out. Three rounds of
+// review found the second one looser than the first — first on money, then on
+// dates and excerpts — because each was written out longhand and only the
+// producer's copy carried the constraint. So the constraint lives once, here,
+// and both boundaries reference it; a third boundary cannot drift either.
+//
+// Only the value's own rule belongs here. Whether the surrounding object is
+// strict, and whether the field is optional, differ per boundary and stay at
+// the site that decides them.
+
+const pageIndex = z.int().nonnegative();
+
+// Non-empty and non-whitespace, here as well as at guards.ts's verifyEvidence:
+// every string contains the empty string, so without this check a schema-only
+// defence would fail open on the plainest hallucination, a model returning "".
+// Two layers because the guard is also called from paths no schema covers.
+// .regex(/\S/) alone already rejects "" and whitespace-only strings; .min(1) is
+// kept so the emitted JSON Schema also carries `minLength: 1` as a hint to the
+// model, not because it adds a runtime constraint.
+const excerpt = z.string().min(1).regex(/\S/);
+
+// ISO calendar date ("2026-07-02"), not free text - a project whose thesis is
+// checkable evidence should not let an unparseable date cross either boundary.
+const isoDate = z.iso.date();
+
+/** Money is always integer minor units - KRW won, USD cents. Never a float. */
+const amountMinor = z.int();
+
+const quantity = z.int().positive();
+
+const printedText = z.string().min(1);
+
+// The page excerpt every model-supplied value must carry.
+const evidenceSchema = z.object({ pageIndex, excerpt }).strict();
 
 /** Wraps a value type in the {value, evidence} shape every model-supplied
  * field takes, matching analyze.ts's ParsedField<T> but with the model's
@@ -26,13 +48,13 @@ function evidenced<T extends z.ZodType>(value: T) {
 
 const modelItemSchema = z
   .object({
-    name: z.string().min(1),
+    name: printedText,
     // Optional, not fail-closed: a model that cannot read a quantity off a
     // garbled line must be able to omit it rather than invent one to
     // satisfy the schema — a missing answer beats a fabricated one. Do not
     // tighten this back to required for symmetry with the other fields.
-    quantity: z.int().positive().optional(),
-    amountMinor: z.int(),
+    quantity: quantity.optional(),
+    amountMinor,
     // Two excerpts, not one (issue #3): OCR can flatten an item table into
     // columns, putting an item's name and its amount many lines apart, and a
     // single excerpt could then only cover both by quoting the whole block —
@@ -54,13 +76,10 @@ const modelItemSchema = z
 export const ModelReplySchema = z
   .object({
     items: z.array(modelItemSchema),
-    merchant: evidenced(z.string().min(1)).optional(),
-    // ISO calendar date ("2026-07-02"), not free text — a project whose
-    // thesis is checkable evidence should not let an unparseable date
-    // string cross the schema boundary.
-    purchaseDate: evidenced(z.iso.date()).optional(),
-    paidTotal: evidenced(z.int()).optional(),
-    reference: evidenced(z.string().min(1)).optional(),
+    merchant: evidenced(printedText).optional(),
+    purchaseDate: evidenced(isoDate).optional(),
+    paidTotal: evidenced(amountMinor).optional(),
+    reference: evidenced(printedText).optional(),
   })
   .strict();
 
@@ -83,3 +102,82 @@ type ObjectJsonSchema = {
 export function modelJsonSchema(): ObjectJsonSchema {
   return z.toJSONSchema(ModelReplySchema) as ObjectJsonSchema;
 }
+
+// --- The endpoint's own response --------------------------------------------
+//
+// `/api/extract`'s reply is the clients' trust boundary, not a formality: the
+// mobile app does not know its server's address, it GUESSES it (api.ts —
+// `http://<devServerHost>:3000`). Any other service listening on that port on
+// the same network answers 200 with JSON, and `body as ExtractionResponse`
+// then hands the renderer an object whose `items` is not an array, which
+// throws inside render rather than failing as a request.
+//
+// Deliberately NOT `.strict()`, unlike ModelReplySchema above. There, an
+// invented field is the hallucination the guard exists to reject. Here the
+// sender is our own server, and rejecting an unknown key would mean that the
+// day the endpoint adds a field, every client built before it refuses the
+// whole response and shows a failure instead of rendering the parts it does
+// understand. Unknown keys are stripped, known ones are checked.
+
+const frameSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+
+const evidenceRefSchema = z.object({ pageIndex, excerpt, box: frameSchema.nullable() });
+
+const fieldSourceSchema = z.enum(["parser", "model"]);
+
+/** The response counterpart of `evidenced()`: the {value, source, evidence,
+ * verified} shape every reported field takes, whichever side derived it. */
+function extracted<T extends z.ZodType>(value: T) {
+  return z.object({
+    value,
+    source: fieldSourceSchema,
+    evidence: evidenceRefSchema,
+    verified: z.boolean(),
+  });
+}
+
+/** Built from the same value constraints ModelReplySchema uses, so this
+ * boundary cannot be looser than the one that produced what crosses it. The
+ * frame's coordinates are the one exception and stay plain numbers: pixel
+ * geometry really is fractional. */
+export const ExtractionResponseSchema = z.object({
+  fields: z.object({
+    merchant: extracted(printedText).optional(),
+    purchaseDate: extracted(isoDate).optional(),
+    paidTotal: extracted(amountMinor).optional(),
+    reference: extracted(printedText).optional(),
+    currency: z.enum(["KRW", "USD"]),
+  }),
+  items: z.array(
+    z.object({
+      name: printedText,
+      quantity: quantity.optional(),
+      amountMinor,
+      source: fieldSourceSchema,
+      nameEvidence: evidenceRefSchema,
+      amountEvidence: evidenceRefSchema,
+      verified: z.boolean(),
+    }),
+  ),
+  tenders: z.array(extracted(amountMinor)),
+  arithmetic: z.object({
+    itemSumMinor: amountMinor.nullable(),
+    claimedTotalMinor: amountMinor.nullable(),
+    reconciledTenderMinor: amountMinor.nullable(),
+    // Three-state on purpose: `null` is "nothing to compare", not disagreement.
+    agrees: z.boolean().nullable(),
+  }),
+  unverified: z.array(z.string()),
+  disagreements: z.array(
+    z.object({ path: z.string(), parserValue: amountMinor, modelValue: amountMinor }),
+  ),
+  modelReply: z.discriminatedUnion("accepted", [
+    z.object({ accepted: z.literal(true) }),
+    z.object({ accepted: z.literal(false), reason: z.string() }),
+  ]),
+});

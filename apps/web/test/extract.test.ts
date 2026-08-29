@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { ExtractionResponseSchema } from "@receipt-evidence/contract/schema";
 import { extract, toIsoDate } from "../src/extract.ts";
 
 const PAGE = {
@@ -868,4 +871,109 @@ test("a quantity must be stated on one of the item's two cited lines", async () 
 
   assert.equal(result.items[0]?.verified, false);
   assert.equal(result.items[0]?.quantity, 4, "kept and marked, never dropped");
+});
+
+// Both clients now PARSE this response rather than asserting it, so the schema
+// has to describe what `extract` emits — not the fixture in schema.test.ts,
+// which was written FROM the schema and can only agree with it. These are the
+// branches whose emitted shape differs: an ordinary reply, a value that failed
+// its guard, the empty-scan fallback, and a reply ModelReplySchema threw out.
+test("a model reply's every branch satisfies ExtractionResponseSchema", async () => {
+  const honest = {
+    async complete() {
+      return {
+        items: [
+          {
+            name: "곤약젤리복숭아",
+            quantity: 1,
+            amountMinor: 1900,
+            nameEvidence: { pageIndex: 0, excerpt: "곤약젤리복숭아" },
+            amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+          },
+        ],
+      };
+    },
+  };
+  const fabricating = {
+    async complete() {
+      // An item, not a merchant: this page's first line IS the merchant, so
+      // the parser supplies it and a model merchant never reaches a guard.
+      return {
+        items: [
+          {
+            name: "커피",
+            amountMinor: 9999,
+            nameEvidence: { pageIndex: 0, excerpt: "NEVER PRINTED" },
+            // A real priced line, but not the price claimed above: that is what
+            // `disagreements` records, and nothing else in this file emits one.
+            amountEvidence: { pageIndex: 0, excerpt: "1,900" },
+          },
+        ],
+      };
+    },
+  };
+  const malformed = {
+    async complete() {
+      return { items: [{ name: "커피", amountMinor: 4500 }] };
+    },
+  };
+
+  // No `lines`: this page is here for the tender in its text, not for a box.
+  // `tenders` is parser-derived, so no model reply above can reach it, and the
+  // corpus does not print one either — measured, all 12 fixtures yield none.
+  const tenderPage = {
+    text: "COFFEE SHOP\nCoffee $12.99\nCredit Card Payment: $7.99\nGift Certificate Payment 1234 $5.00\n",
+    lines: [],
+  };
+
+  const results = [
+    await extract({ pages: [FLATTENED_PAGE] }, honest, new Date(2026, 7, 24)),
+    await extract({ pages: [FLATTENED_PAGE] }, fabricating, new Date(2026, 7, 24)),
+    await extract({ pages: [] }, malformed, new Date(2026, 7, 24)),
+    await extract({ pages: [tenderPage] }, honest, new Date(2026, 7, 24)),
+  ];
+
+  // `parse`, not `safeParse`: a mismatch should say which path failed.
+  for (const result of results) ExtractionResponseSchema.parse(result);
+
+  // Not three copies of the same empty shape — each result carries the part
+  // that makes it worth parsing.
+  assert.ok(results[0].items.length > 0);
+  assert.ok(results[1].unverified.length > 0);
+  assert.ok(results[1].disagreements.length > 0);
+  assert.equal(results[2].modelReply.accepted, false);
+  assert.ok(results[3].tenders.length > 0);
+});
+
+// The test above builds its replies by hand, so it only reaches the branches
+// someone thought to write. `tenders` is parser-derived and no hand-built reply
+// in this file produces one, which left the schema's `tenders` array with no
+// runtime coverage at all — the type assertion in schema.test.ts cannot see it,
+// because `z.int()` and `.nonnegative()` both infer as plain `number`. The
+// corpus is where the real shapes are.
+const CORPUS_DIR = path.join(import.meta.dirname, "..", "..", "..", "packages", "contract", "test", "fixtures", "receipts");
+
+test("the whole corpus, parsed end to end, satisfies ExtractionResponseSchema", async () => {
+  const client = {
+    async complete() {
+      return { items: [] };
+    },
+  };
+  const files = fs.readdirSync(CORPUS_DIR).filter((name) => name.endsWith(".txt"));
+  assert.equal(files.length, 12);
+
+  let populated = 0;
+  for (const file of files) {
+    const text = fs.readFileSync(path.join(CORPUS_DIR, file), "utf8");
+    const result = await extract({ pages: [{ text, lines: [] }] }, client, new Date(2026, 6, 20));
+
+    // Over the wire, not in memory: the clients parse what JSON survived, and
+    // JSON.stringify drops an `undefined` optional rather than sending it.
+    ExtractionResponseSchema.parse(JSON.parse(JSON.stringify(result)));
+    if (result.fields.paidTotal !== undefined) populated += 1;
+  }
+
+  // Without this the loop would still pass on twelve empty responses, which
+  // parse trivially and would prove nothing about the shapes it exists to read.
+  assert.ok(populated > 0);
 });
