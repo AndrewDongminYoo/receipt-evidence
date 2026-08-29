@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { File } from "expo-file-system";
 import { scan, DEFAULT_OCR_FLOOR } from "react-native-receipt-scanner";
 import type { ReceiptImage } from "react-native-receipt-scanner";
+import { ExtractionResponseSchema } from "@receipt-evidence/contract/schema";
 import type { EvidenceRef, ExtractedField, ExtractedItem, ExtractionResponse, Frame, Page } from "@receipt-evidence/contract/response";
 import { apiBaseUrl } from "./src/api.ts";
 import { clearsFloor } from "./src/capture.ts";
@@ -131,7 +132,22 @@ export default function App() {
             : response.statusText;
         return setStatus({ kind: "failed", message });
       }
-      setStatus({ kind: "done", images: scanned.images, result: body as ExtractionResponse });
+      // Checked, not asserted: API_URL is a GUESS (api.ts), so a 200 with JSON
+      // is not proof this came from the extraction endpoint. An unchecked cast
+      // moves the failure into render, where it is a crash instead of a message.
+      const extraction = ExtractionResponseSchema.safeParse(body);
+      if (!extraction.success) {
+        // The failing PATH, never zod's message and never the value: the path
+        // is what tells "this is not the extraction endpoint" apart from "our
+        // own server changed `arithmetic`", and a received value would be
+        // receipt contents on a screen that is not a dev build.
+        const where = extraction.error.issues[0]?.path.join(".");
+        return setStatus({
+          kind: "failed",
+          message: `the server did not return an extraction${where === undefined || where === "" ? "" : ` (${where})`}`,
+        });
+      }
+      setStatus({ kind: "done", images: scanned.images, result: extraction.data });
     } catch (error) {
       setStatus({ kind: "failed", message: error instanceof Error ? error.message : String(error) });
     }

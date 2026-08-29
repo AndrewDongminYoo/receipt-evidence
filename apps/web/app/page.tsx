@@ -12,6 +12,7 @@
 // when one was anchored.
 import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
+import { ExtractionResponseSchema } from "@receipt-evidence/contract/schema";
 import type { EvidenceRef, ExtractedField, ExtractedItem, ExtractionResponse, Frame } from "../src/extract.ts";
 import type { OcrLine } from "@receipt-evidence/contract/anchor";
 
@@ -339,7 +340,16 @@ export default function Page() {
         setError(message);
         return;
       }
-      setResult(body as ExtractionResponse);
+      const extraction = ExtractionResponseSchema.safeParse(body);
+      if (!extraction.success) {
+        // The failing path, not zod's message: it separates "this is not the
+        // extraction endpoint" from "the endpoint changed a field", and it
+        // cannot carry a received value, which would be receipt contents.
+        const where = extraction.error.issues[0]?.path.join(".");
+        setError(`the server did not return an extraction${where === undefined || where === "" ? "" : ` (${where})`}`);
+        return;
+      }
+      setResult(extraction.data);
     } catch (err) {
       if (requestRevision.current !== revision) return;
       setError(err instanceof Error ? err.message : "request failed");
