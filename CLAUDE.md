@@ -63,6 +63,15 @@ Nine defects on this project were tests or gates that passed while proving nothi
 The local code implements the parser and corpus gate, guards, arithmetic, anchoring, schema, `/api/extract`, web demo, image fallback, Expo app, README, and CI.
 `pnpm test` and `pnpm typecheck` verify local code only; they do not establish visual, device, or hosted-demo acceptance.
 
-**Outstanding acceptance work:** Task 15's manual browser pass has no recorded repository evidence. Task 16 Step 4 now does, both halves, run on the operator's iPhone 16 Pro on 2026-08-29: the gallery path against a single-page receipt, in the ordinary direction and against a 200 that is not an extraction; the camera path against a three-page 20-item receipt, whose response the clients' schema parsed on the device. That run also raised a warning banner whose text was never read — Metro's only CDP target was a booted simulator, not the phone — so it is evidence about the pipeline, not that the app runs warning-free; `expo run:ios` attaches the device log stream and is how to see it. A device pass writes to his daily phone, so it needs explicit authorisation for each device operation. Task 17's hosted demo link is not implemented because no deployment target is configured.
+**Outstanding acceptance work:** only Task 17's hosted demo link, which is not implemented because no deployment target is configured.
+Both of the passes that had no repository evidence ran on 2026-08-29, and a device pass writes to the operator's daily phone, so it needs explicit authorisation for each device operation.
+
+Task 15's manual browser pass ran against a page crafted to make its four markings appear at once: one printed amount repeated, and a printed total that disagrees with the item sum.
+It showed the parser's four fields, one verified item beside two unverified ones, `MISMATCH` at 5,500 against a claimed 6,000, and an evidence box on each line a value was read from.
+The two unverified items drew a box on their name and none on their amount, which is `anchorToLines` refusing an ambiguous excerpt rather than a defect.
+That page's image was sent to the model as well, so the run exercised the image fallback too.
+
+Task 16 Step 4 ran both halves on the operator's iPhone 16 Pro: the gallery path against a single-page receipt, in the ordinary direction and against a 200 that is not an extraction; the camera path against a three-page 20-item receipt, whose response the clients' schema parsed on the device.
+The camera run also raised a warning banner whose text was never read — Metro's only CDP target was a booted simulator, not the phone — so it is evidence about the pipeline, not that the app runs warning-free; `expo run:ios` attaches the device log stream and is how to see it.
 
 Remote branches are dynamic state, not durable repository guidance. Inspect them with `git branch -r` when needed.
