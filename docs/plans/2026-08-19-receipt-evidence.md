@@ -66,10 +66,12 @@ docs/notes/model-identifier.md     written by Task 14 from official docs
 ### Task 1: Workspace skeleton
 
 **Files:**
+
 - Create: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`
 - Create: `packages/contract/package.json`, `packages/contract/tsconfig.json`, `packages/contract/src/types.ts`, `packages/contract/test/types.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `pnpm test` at the root runs `node --test` over `packages/contract/test/**/*.test.ts`. The `Money` type: `type Money = { amountMinor: number; currency: "KRW" | "USD" }`.
 
@@ -155,9 +157,11 @@ git commit -m "build: 🏗️ set up the pnpm workspace and the contract package
 ### Task 2: Evidence lines
 
 **Files:**
+
 - Create: `packages/contract/src/evidence.ts`, `packages/contract/test/evidence.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `interface OcrEvidence { lineIndex: number; text: string }` and `evidenceLines(rawText: string): OcrEvidence[]`. Every later module quotes lines through this type.
 
@@ -203,14 +207,16 @@ export interface OcrEvidence {
 }
 
 export function evidenceLines(rawText: string): OcrEvidence[] {
-  return rawText
-    .split("\n")
-    .map((text) => text.trim())
-    .filter((text) => text.length > 0)
-    // The index is assigned after filtering, matching Dart's `.indexed` on the
-    // filtered iterable: it counts recognised lines, which is what the scanner's
-    // ocrLines[] is indexed by too.
-    .map((text, lineIndex) => ({ lineIndex, text }));
+  return (
+    rawText
+      .split("\n")
+      .map((text) => text.trim())
+      .filter((text) => text.length > 0)
+      // The index is assigned after filtering, matching Dart's `.indexed` on the
+      // filtered iterable: it counts recognised lines, which is what the scanner's
+      // ocrLines[] is indexed by too.
+      .map((text, lineIndex) => ({ lineIndex, text }))
+  );
 }
 ```
 
@@ -231,9 +237,11 @@ git commit -m "feat(contract): ✨ split OCR text into indexed evidence lines"
 ### Task 3: Dates
 
 **Files:**
+
 - Create: `packages/contract/src/dates.ts`, `packages/contract/test/dates.test.ts`
 
 **Interfaces:**
+
 - Consumes: `OcrEvidence` from Task 2.
 - Produces: `parseDate(text: string): Date | null` and `selectDate(lines: OcrEvidence[], referenceDate: Date): OcrEvidence | null`.
 
@@ -263,12 +271,17 @@ test("parseDate ignores a short date embedded in a longer identifier", () => {
 });
 
 test("parseDate skips a calendar-invalid match and takes the valid one beside it", () => {
-  assert.deepEqual(parseDate("2026-02-31 승인 2026-07-01"), new Date(2026, 6, 1));
+  assert.deepEqual(
+    parseDate("2026-02-31 승인 2026-07-01"),
+    new Date(2026, 6, 1),
+  );
 });
 
 test("selectDate skips expiry labels and future dates", () => {
   const reference = new Date(2026, 6, 20);
-  const lines = evidenceLines("유효기간 2027-01-01\n2028-05-05\n2026-07-02 20:20:50\n");
+  const lines = evidenceLines(
+    "유효기간 2027-01-01\n2028-05-05\n2026-07-02 20:20:50\n",
+  );
 
   assert.equal(selectDate(lines, reference)?.text, "2026-07-02 20:20:50");
 });
@@ -296,7 +309,9 @@ const EXPIRY_LABEL = /(expir|\bexp\b|유효기간)/i;
 function calendarDate(year: number, month: number, day: number): Date | null {
   const date = new Date(year, month - 1, day);
   const valid =
-    date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day;
   return valid ? date : null;
 }
 
@@ -318,13 +333,18 @@ export function parseDate(text: string): Date | null {
   return null;
 }
 
-export function selectDate(lines: OcrEvidence[], referenceDate: Date): OcrEvidence | null {
+export function selectDate(
+  lines: OcrEvidence[],
+  referenceDate: Date,
+): OcrEvidence | null {
   return (
     lines.find((line) => {
       const date = parseDate(line.text);
       // A purchase already happened, so a later date belongs to an expiry, a
       // return window, or a misread year rather than to this receipt.
-      return date !== null && !EXPIRY_LABEL.test(line.text) && date <= referenceDate;
+      return (
+        date !== null && !EXPIRY_LABEL.test(line.text) && date <= referenceDate
+      );
     }) ?? null
   );
 }
@@ -347,9 +367,11 @@ git commit -m "feat(contract): ✨ parse receipt dates and reject expiries"
 ### Task 4: Amounts
 
 **Files:**
+
 - Create: `packages/contract/src/amounts.ts`, `packages/contract/test/amounts.test.ts`
 
 **Interfaces:**
+
 - Consumes: `OcrEvidence`.
 - Produces: `parseAmountMinor(text: string, currency: Currency): number | null` and `canUseAsAmount(line: OcrEvidence): boolean`.
 
@@ -400,7 +422,8 @@ Port the constants verbatim, then the two functions. Keep the Dart comments — 
 import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
 
-const TRAILING_AMOUNT = /\s+(?:(?:KRW|USD)\s*)?[₩$]?\s*(\d[\d,]*(?:\.\d{2})?)원?\s*$/i;
+const TRAILING_AMOUNT =
+  /\s+(?:(?:KRW|USD)\s*)?[₩$]?\s*(\d[\d,]*(?:\.\d{2})?)원?\s*$/i;
 const AMOUNT_PATTERN = /\d[\d,]*(?:\.\d{2})?/;
 // Clock times ride the same line as dates on receipts; a colon never appears
 // in an amount, so stripping `14:30:22` keeps it out of amount inference.
@@ -428,9 +451,11 @@ git commit -m "feat(contract): ✨ read receipt amounts as integer minor units"
 ### Task 5: Total selection
 
 **Files:**
+
 - Create: `packages/contract/src/total.ts`, `packages/contract/test/total.test.ts`
 
 **Interfaces:**
+
 - Consumes: `OcrEvidence`, `parseAmountMinor`, `canUseAsAmount`.
 - Produces: `selectTotal(lines: OcrEvidence[], currency: Currency): OcrEvidence | null`.
 
@@ -496,7 +521,8 @@ const TOTAL_LABEL = /(^|\s)(total|grand total|결제금액|합계)(\s|:|$)/i;
 // A row naming a different money figure is never the paid total. The English
 // labels match as whole words, so `TAXI FARE $12.99` is a fare rather than a
 // tax row; the Korean ones match anywhere, because `할인금액` is one word.
-const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\b|소계|할인|세금|부가세/i;
+const OTHER_AMOUNT_LABEL =
+  /\b(discount|saved|savings?|tax|vat|subtotal)\b|소계|할인|세금|부가세/i;
 // A row naming a count is the paid total only when it also carries money:
 // `TOTAL 2 ITEMS $24.95` is a total, `TOTAL NUMBER OF ITEMS SOLD - 10` is a tally.
 const COUNT_LABEL = /\b(count|number|items?|sold|qty|quantity)\b|수량|개수/i;
@@ -522,9 +548,11 @@ git commit -m "feat(contract): ✨ pick the paid total apart from discounts and 
 ### Task 6: Currency inference
 
 **Files:**
+
 - Create: `packages/contract/src/currency.ts`, `packages/contract/test/currency.test.ts`
 
 **Interfaces:**
+
 - Consumes: `OcrEvidence`.
 - Produces: `inferCurrency(rawText: string, lines: OcrEvidence[], total: OcrEvidence | null): Currency`.
 
@@ -552,13 +580,19 @@ test("inferCurrency reads a fare row as USD — TAXI is not a tax row", () => {
   // `\btax\b` matches as a whole word, so TAXI never triggers the tax label.
   const lines = evidenceLines("City Cabs\nTAXI FARE $12.99\n");
 
-  assert.equal(inferCurrency("City Cabs\nTAXI FARE $12.99", lines, null), "USD");
+  assert.equal(
+    inferCurrency("City Cabs\nTAXI FARE $12.99", lines, null),
+    "USD",
+  );
 });
 
 test("inferCurrency keeps a dotted date out of cents detection", () => {
   const lines = evidenceLines("GS25\n2026.07.02 20:20:50\n17,100\n");
 
-  assert.equal(inferCurrency("GS25\n2026.07.02 20:20:50\n17,100", lines, lines[2]), "KRW");
+  assert.equal(
+    inferCurrency("GS25\n2026.07.02 20:20:50\n17,100", lines, lines[2]),
+    "KRW",
+  );
 });
 ```
 
@@ -598,9 +632,11 @@ git commit -m "feat(contract): ✨ infer the receipt currency from its markers"
 ### Task 7: Items
 
 **Files:**
+
 - Create: `packages/contract/src/items.ts`, `packages/contract/test/items.test.ts`
 
 **Interfaces:**
+
 - Consumes: `OcrEvidence`, `parseAmountMinor`.
 - Produces: `interface ParsedItem { name: string; amountMinor: number; nameEvidence: OcrEvidence; amountEvidence: OcrEvidence }` and `extractItems(lines: OcrEvidence[], currency: Currency): ParsedItem[]`.
 
@@ -632,7 +668,9 @@ test("extractItems reads priced items with their evidence lines", () => {
 });
 
 test("extractItems excludes settlement and column-header rows", () => {
-  const lines = evidenceLines("OIL CHANGE 39.99\nCHANGE DUE 7.01\nQTY 1.00\n거스름 500\n");
+  const lines = evidenceLines(
+    "OIL CHANGE 39.99\nCHANGE DUE 7.01\nQTY 1.00\n거스름 500\n",
+  );
 
   assert.deepEqual(
     extractItems(lines, "USD").map((item) => item.name),
@@ -686,18 +724,23 @@ git commit -m "feat(contract): ✨ extract priced line items with their evidence
 ### Task 8: Assemble the parser
 
 **Files:**
+
 - Create: `packages/contract/src/analyze.ts`, `packages/contract/test/analyze.test.ts`
 
 **Interfaces:**
+
 - Consumes: everything from Tasks 2-7.
 - Produces:
 
 ```ts
-export interface ParsedField<T> { value: T; evidence: OcrEvidence }
+export interface ParsedField<T> {
+  value: T;
+  evidence: OcrEvidence;
+}
 export interface ParsedReceipt {
   merchant: ParsedField<string> | null;
   purchaseDate: ParsedField<Date> | null;
-  paidTotal: ParsedField<number> | null;   // minor units
+  paidTotal: ParsedField<number> | null; // minor units
   currency: Currency;
   reference: ParsedField<string> | null;
   items: ParsedItem[];
@@ -735,7 +778,10 @@ test("analyze fills every field from a clean receipt", () => {
 });
 
 test("analyze leaves a field null rather than guessing it", () => {
-  const parsed = analyze("Corner Shop\nPortable SSD\n89,000\nCard 1234\n", REFERENCE);
+  const parsed = analyze(
+    "Corner Shop\nPortable SSD\n89,000\nCard 1234\n",
+    REFERENCE,
+  );
 
   assert.equal(parsed.reference, null);
   assert.equal(parsed.paidTotal?.value, 89000);
@@ -775,10 +821,12 @@ git commit -m "feat(contract): ✨ assemble the deterministic receipt parser"
 ### Task 9: The corpus gate
 
 **Files:**
+
 - Copy: `due_back/test/fixtures/receipts/*` → `packages/contract/test/fixtures/receipts/` (12 `.txt` files plus `expected.json`)
 - Create: `packages/contract/test/corpus.test.ts`, `docs/notes/corpus-baseline.md`
 
 **Interfaces:**
+
 - Consumes: `analyze()`.
 - Produces: the measured baseline this project's argument rests on.
 
@@ -804,7 +852,9 @@ import { analyze } from "../src/analyze.ts";
 
 const DIR = path.join(import.meta.dirname, "fixtures", "receipts");
 const REFERENCE = new Date(2026, 6, 20);
-const manifest = JSON.parse(fs.readFileSync(path.join(DIR, "expected.json"), "utf8"));
+const manifest = JSON.parse(
+  fs.readFileSync(path.join(DIR, "expected.json"), "utf8"),
+);
 
 for (const receipt of manifest.receipts) {
   test(`${receipt.id} extracts only OCR-supported facts`, () => {
@@ -813,14 +863,30 @@ for (const receipt of manifest.receipts) {
     const derived = receipt.ocrDerived;
 
     if (derived.paidTotalMinor.derivable === false) {
-      assert.equal(parsed.paidTotal, null, `${receipt.id} must not invent a total`);
+      assert.equal(
+        parsed.paidTotal,
+        null,
+        `${receipt.id} must not invent a total`,
+      );
     } else {
-      assert.equal(parsed.paidTotal?.value, derived.paidTotalMinor.value, receipt.id);
-      assert.equal(parsed.paidTotal?.evidence.text, derived.paidTotalMinor.evidence, receipt.id);
+      assert.equal(
+        parsed.paidTotal?.value,
+        derived.paidTotalMinor.value,
+        receipt.id,
+      );
+      assert.equal(
+        parsed.paidTotal?.evidence.text,
+        derived.paidTotalMinor.evidence,
+        receipt.id,
+      );
     }
 
     if (derived.merchant.derivable === false) {
-      assert.equal(parsed.merchant, null, `${receipt.id} must not invent a merchant`);
+      assert.equal(
+        parsed.merchant,
+        null,
+        `${receipt.id} must not invent a merchant`,
+      );
     } else {
       assert.equal(parsed.merchant?.value, derived.merchant.value, receipt.id);
     }
@@ -855,9 +921,11 @@ git commit -m "test(contract): ✅ gate the parser on the 12-receipt corpus"
 ### Task 10: Evidence guards
 
 **Files:**
+
 - Create: `packages/contract/src/guards.ts`, `packages/contract/test/guards.test.ts`
 
 **Interfaces:**
+
 - Consumes: `OcrEvidence`.
 - Produces:
 
@@ -915,7 +983,8 @@ test("a fabricated model value cannot pass the guard", () => {
   const fabricated = { value: 148000, excerpt: "합계 148,000" };
 
   assert.equal(
-    verifyEvidence(fabricated.excerpt, page) && excerptContainsValue(fabricated.excerpt, fabricated.value),
+    verifyEvidence(fabricated.excerpt, page) &&
+      excerptContainsValue(fabricated.excerpt, fabricated.value),
     false,
   );
 });
@@ -948,9 +1017,11 @@ git commit -m "feat(contract): ✨ verify model values against their evidence"
 ### Task 11: Arithmetic re-check
 
 **Files:**
+
 - Create: `packages/contract/src/arithmetic.ts`, `packages/contract/test/arithmetic.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ParsedItem`.
 - Produces: `checkArithmetic(items: { amountMinor: number }[], claimedTotalMinor: number | null): { itemSumMinor: number | null; claimedTotalMinor: number | null; agrees: boolean | null }`.
 
@@ -965,15 +1036,26 @@ import test from "node:test";
 import { checkArithmetic } from "../src/arithmetic.ts";
 
 test("checkArithmetic agrees when the items sum to the total", () => {
-  const result = checkArithmetic([{ amountMinor: 13000 }, { amountMinor: 1700 }, { amountMinor: 100 }], 14800);
+  const result = checkArithmetic(
+    [{ amountMinor: 13000 }, { amountMinor: 1700 }, { amountMinor: 100 }],
+    14800,
+  );
 
-  assert.deepEqual(result, { itemSumMinor: 14800, claimedTotalMinor: 14800, agrees: true });
+  assert.deepEqual(result, {
+    itemSumMinor: 14800,
+    claimedTotalMinor: 14800,
+    agrees: true,
+  });
 });
 
 test("checkArithmetic reports a mismatch without correcting it", () => {
   const result = checkArithmetic([{ amountMinor: 13000 }], 14800);
 
-  assert.deepEqual(result, { itemSumMinor: 13000, claimedTotalMinor: 14800, agrees: false });
+  assert.deepEqual(result, {
+    itemSumMinor: 13000,
+    claimedTotalMinor: 14800,
+    agrees: false,
+  });
 });
 
 test("checkArithmetic answers null when either side is missing", () => {
@@ -1002,9 +1084,14 @@ export function checkArithmetic(
   items: readonly { amountMinor: number }[],
   claimedTotalMinor: number | null,
 ): ArithmeticCheck {
-  const itemSumMinor = items.length > 0 ? items.reduce((sum, item) => sum + item.amountMinor, 0) : null;
+  const itemSumMinor =
+    items.length > 0
+      ? items.reduce((sum, item) => sum + item.amountMinor, 0)
+      : null;
   const agrees =
-    itemSumMinor === null || claimedTotalMinor === null ? null : itemSumMinor === claimedTotalMinor;
+    itemSumMinor === null || claimedTotalMinor === null
+      ? null
+      : itemSumMinor === claimedTotalMinor;
   return { itemSumMinor, claimedTotalMinor, agrees };
 }
 ```
@@ -1026,15 +1113,23 @@ git commit -m "feat(contract): ✨ recompute the item sum against the claimed to
 ### Task 12: Anchoring evidence to boxes
 
 **Files:**
+
 - Create: `packages/contract/src/anchor.ts`, `packages/contract/test/anchor.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks except types.
 - Produces:
 
 ```ts
-export interface OcrLine { text: string; frame: { x: number; y: number; width: number; height: number } }
-export function anchorToLines(excerpt: string, lines: readonly OcrLine[]): OcrLine["frame"] | null;
+export interface OcrLine {
+  text: string;
+  frame: { x: number; y: number; width: number; height: number };
+}
+export function anchorToLines(
+  excerpt: string,
+  lines: readonly OcrLine[],
+): OcrLine["frame"] | null;
 ```
 
 `OcrLine` mirrors the shape `react-native-receipt-scanner` returns, so the app can pass its `ocrLines` straight through.
@@ -1053,11 +1148,21 @@ const LINES = [
 ];
 
 test("anchorToLines finds the box of the quoted line", () => {
-  assert.deepEqual(anchorToLines("합계 14,800", LINES), { x: 10, y: 40, width: 200, height: 20 });
+  assert.deepEqual(anchorToLines("합계 14,800", LINES), {
+    x: 10,
+    y: 40,
+    width: 200,
+    height: 20,
+  });
 });
 
 test("anchorToLines matches after whitespace and NFKC normalisation", () => {
-  assert.deepEqual(anchorToLines("합계  14,800 ", LINES), { x: 10, y: 40, width: 200, height: 20 });
+  assert.deepEqual(anchorToLines("합계  14,800 ", LINES), {
+    x: 10,
+    y: 40,
+    width: 200,
+    height: 20,
+  });
 });
 
 test("anchorToLines returns null when no line carries the excerpt", () => {
@@ -1091,10 +1196,12 @@ git commit -m "feat(contract): ✨ anchor an evidence excerpt to its OCR box"
 ### Task 13: The model's schema
 
 **Files:**
+
 - Create: `packages/contract/src/schema.ts`, `packages/contract/test/schema.test.ts`
 - Modify: `packages/contract/package.json` (add `zod@4.4.3`)
 
 **Interfaces:**
+
 - Consumes: nothing. In particular NOT `Currency` — `inferCurrency` always returns a concrete value, so currency is never a field the parser leaves empty and the model is never asked for it. An earlier version of this line said otherwise and produced a schema branch that could not fire.
 - Produces: `ModelReplySchema` (zod), `type ModelReply = z.infer<typeof ModelReplySchema>`, and `modelJsonSchema()` returning the JSON Schema the API is handed.
 
@@ -1109,7 +1216,9 @@ import test from "node:test";
 import { ModelReplySchema, modelJsonSchema } from "../src/schema.ts";
 
 test("the schema requires evidence on every value", () => {
-  const withoutEvidence = { items: [{ name: "커피", quantity: 1, amountMinor: 4500 }] };
+  const withoutEvidence = {
+    items: [{ name: "커피", quantity: 1, amountMinor: 4500 }],
+  };
 
   assert.equal(ModelReplySchema.safeParse(withoutEvidence).success, false);
 });
@@ -1117,7 +1226,12 @@ test("the schema requires evidence on every value", () => {
 test("the schema accepts a fully evidenced reply", () => {
   const reply = {
     items: [
-      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+      {
+        name: "커피",
+        quantity: 1,
+        amountMinor: 4500,
+        evidence: { pageIndex: 0, excerpt: "커피 4,500" },
+      },
     ],
     merchant: { value: "GS25", evidence: { pageIndex: 0, excerpt: "GS25" } },
   };
@@ -1132,7 +1246,12 @@ test("a reply carrying an invented field is rejected, not silently stripped", ()
   // what a model volunteers, and this project refuses to carry one.
   const reply = {
     items: [
-      { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+      {
+        name: "커피",
+        quantity: 1,
+        amountMinor: 4500,
+        evidence: { pageIndex: 0, excerpt: "커피 4,500" },
+      },
     ],
     confidence: 0.91,
   };
@@ -1144,7 +1263,10 @@ test("the JSON schema handed to the model matches the zod definition", () => {
   const jsonSchema = modelJsonSchema();
 
   assert.equal(jsonSchema.type, "object");
-  assert.ok(jsonSchema.properties.items, "items must be present in the JSON schema");
+  assert.ok(
+    jsonSchema.properties.items,
+    "items must be present in the JSON schema",
+  );
   assert.equal(jsonSchema.additionalProperties, false);
 });
 ```
@@ -1175,11 +1297,13 @@ git commit -m "feat(contract): ✨ define the model reply schema once, in zod"
 ### Task 14: The extraction endpoint
 
 **Files:**
+
 - Create: `apps/web/package.json`, `apps/web/next.config.ts`, `apps/web/tsconfig.json`
 - Create: `apps/web/src/model-client.ts`, `apps/web/app/api/extract/route.ts`
 - Create: `apps/web/test/extract.test.ts`, `docs/notes/model-identifier.md`
 
 **Interfaces:**
+
 - Consumes: `analyze`, `verifyEvidence`, `excerptContainsAmount`, `excerptContainsText`, `checkArithmetic`, `anchorToLines`, `ModelReplySchema`.
 - Produces: `POST /api/extract` taking `{ pages: [{ text, lines, imageDataUrl? }] }` and returning the `ExtractionResponse` from the spec. `ModelClient` is an interface with one method, so tests substitute a fake and never call OpenAI.
 
@@ -1209,16 +1333,30 @@ test("a model item backed by real evidence is verified and anchored", async () =
     async complete() {
       return {
         items: [
-          { name: "커피", quantity: 1, amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+          {
+            name: "커피",
+            quantity: 1,
+            amountMinor: 4500,
+            evidence: { pageIndex: 0, excerpt: "커피 4,500" },
+          },
         ],
       };
     },
   };
 
-  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
+  const result = await extract(
+    { pages: [PAGE] },
+    client,
+    new Date(2026, 6, 20),
+  );
 
   assert.equal(result.items[0].verified, true);
-  assert.deepEqual(result.items[0].evidence.box, { x: 0, y: 20, width: 10, height: 10 });
+  assert.deepEqual(result.items[0].evidence.box, {
+    x: 0,
+    y: 20,
+    width: 10,
+    height: 10,
+  });
   assert.equal(result.arithmetic.agrees, true);
 });
 
@@ -1227,13 +1365,22 @@ test("a fabricated model item survives as unverified, never as fact", async () =
     async complete() {
       return {
         items: [
-          { name: "위스키", quantity: 1, amountMinor: 90000, evidence: { pageIndex: 0, excerpt: "위스키 90,000" } },
+          {
+            name: "위스키",
+            quantity: 1,
+            amountMinor: 90000,
+            evidence: { pageIndex: 0, excerpt: "위스키 90,000" },
+          },
         ],
       };
     },
   };
 
-  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
+  const result = await extract(
+    { pages: [PAGE] },
+    client,
+    new Date(2026, 6, 20),
+  );
 
   assert.equal(result.items[0].verified, false);
   assert.deepEqual(result.unverified, ["items[0]"]);
@@ -1241,9 +1388,17 @@ test("a fabricated model item survives as unverified, never as fact", async () =
 });
 
 test("the parser's own fields are marked as coming from the parser", async () => {
-  const client = { async complete() { return { items: [] }; } };
+  const client = {
+    async complete() {
+      return { items: [] };
+    },
+  };
 
-  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
+  const result = await extract(
+    { pages: [PAGE] },
+    client,
+    new Date(2026, 6, 20),
+  );
 
   assert.equal(result.fields.paidTotal?.source, "parser");
   assert.equal(result.fields.paidTotal?.verified, true);
@@ -1276,10 +1431,12 @@ git commit -m "feat(web): ✨ extract a receipt through the parser, the model, a
 ### Task 14b: The image fallback
 
 **Files:**
+
 - Modify: `apps/web/src/model-client.ts`, `apps/web/src/extract.ts`
 - Test: `apps/web/test/model-client.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Page.imageDataUrl` — already declared and sent when the caller opts into image fallback.
 - Produces: a request that carries the page's image when one is present, and does not when it is not.
 
@@ -1292,9 +1449,11 @@ The test uses a fake client and asserts both directions: a page carrying `imageD
 ### Task 15: The demo page
 
 **Files:**
+
 - Create: `apps/web/app/page.tsx`, `apps/web/app/globals.css`
 
 **Interfaces:**
+
 - Consumes: `POST /api/extract`.
 - Produces: the page a reviewer opens without building anything.
 
@@ -1316,9 +1475,11 @@ git commit -m "feat(web): ✨ show extraction results with their evidence"
 ### Task 16: The mobile app
 
 **Files:**
+
 - Create: `apps/mobile/` (Expo app), `apps/mobile/App.tsx`, `apps/mobile/src/EvidenceOverlay.tsx`
 
 **Interfaces:**
+
 - Consumes: `react-native-receipt-scanner@0.8.0`'s `scan()` and `DEFAULT_OCR_FLOOR`; `POST /api/extract`.
 - Produces: the capture path the sample is actually about.
 
@@ -1356,10 +1517,12 @@ git commit -m "feat(mobile): ✨ scan a receipt and show its evidence on the ima
 ### Task 17: README and publication
 
 **Files:**
+
 - Modify: `README.md`
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
+
 - Consumes: everything.
 - Produces: what a reviewer reads first.
 
