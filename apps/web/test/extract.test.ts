@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { ExtractionResponseSchema } from "@receipt-evidence/contract/schema";
 import { extract, toIsoDate } from "../src/extract.ts";
+import { COLUMN_PAYMENT_LINES, COLUMN_PAYMENT_TEXT } from "../../../packages/contract/test/fixtures/column-payment.ts";
 
 const PAGE = {
   text: "GS25\n2026.07.02 20:20:50\n커피 4,500\n합계 4,500\n",
@@ -13,6 +14,29 @@ const PAGE = {
     { text: "합계 4,500", frame: { x: 0, y: 40, width: 10, height: 10 } },
   ],
 };
+
+test("an ambiguous payment block remains missing through fake-provider extraction", async () => {
+  const page = {
+    text: COLUMN_PAYMENT_TEXT,
+    lines: COLUMN_PAYMENT_LINES.map((text, index) => ({
+      text,
+      frame: { x: 0, y: index * 10, width: 100, height: 10 },
+    })),
+  };
+  let missingFields: readonly string[] = [];
+  const client = {
+    async complete(input: { missingFields: readonly string[] }) {
+      missingFields = input.missingFields;
+      return { items: [] };
+    },
+  };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 29));
+
+  assert.ok(missingFields.includes("paidTotal"));
+  assert.equal(result.fields.paidTotal, undefined);
+  assert.equal(result.arithmetic.claimedTotalMinor, null);
+  assert.equal(result.arithmetic.agrees, null);
+});
 
 test("a model item backed by real evidence is verified and anchored", async () => {
   // No `quantity`: the line reads `커피 4,500` and states no count, and the

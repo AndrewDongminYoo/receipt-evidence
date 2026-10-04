@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { evidenceLines } from "../src/evidence.ts";
 import { isAmountOnlyRow, selectTotal } from "../src/total.ts";
+import { AMBIGUOUS_PAYMENT_CASES, COLUMN_PAYMENT_TEXT } from "./fixtures/column-payment.ts";
 
 test("selectTotal ignores discount, subtotal and tax rows", () => {
   const lines = evidenceLines("소계 20,000\n할인금액 -6,600\n합계 14,800\n");
@@ -110,6 +111,113 @@ test("selectTotal pairs stacked labels with their column-aligned values", () => 
   const lines = evidenceLines("SUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03\n");
 
   assert.equal(selectTotal(lines, "USD")?.evidence.text, "6.03");
+});
+
+test("selectTotal leaves the ambiguous payment block unknown", () => {
+  const lines = evidenceLines(COLUMN_PAYMENT_TEXT);
+  const total = selectTotal(lines, "KRW");
+
+  assert.equal(total, null);
+});
+
+for (const fixture of AMBIGUOUS_PAYMENT_CASES) {
+  test(`selectTotal rejects ambiguous columns: ${fixture.name}`, () => {
+    assert.equal(selectTotal(evidenceLines(fixture.text), "KRW"), null);
+  });
+}
+
+test("a small amount immediately after a lone total label is still a total", () => {
+  assert.deepEqual(selectTotal(evidenceLines("TOTAL\n1"), "KRW"), {
+    amountMinor: 1,
+    evidence: { lineIndex: 1, text: "1" },
+  });
+});
+
+test("merchant names containing financial words do not claim the total column", () => {
+  for (const merchant of ["TOTAL WINE & MORE", "DISCOUNT STORE", "TAX SHOP", "BOB'S DISCOUNT", "BOB'S TAX", "SHOP TOTAL"]) {
+    const lines = evidenceLines(`${merchant}\nTOTAL\n$12.00`);
+
+    assert.deepEqual(selectTotal(lines, "USD"), {
+      amountMinor: 1200,
+      evidence: { lineIndex: 2, text: "$12.00" },
+    }, merchant);
+  }
+});
+
+test("a merchant total token does not disable an unlabelled currency-marked total", () => {
+  const lines = evidenceLines("TOTAL WINE & MORE\nWine bottle $12.00\n$12.00");
+
+  assert.deepEqual(selectTotal(lines, "USD"), {
+    amountMinor: 1200,
+    evidence: { lineIndex: 2, text: "$12.00" },
+  });
+});
+
+test("a merchant name ending in TOTAL does not suppress a standalone amount after an item", () => {
+  for (const merchant of ["TOTAL", "SHOP TOTAL"]) {
+    const lines = evidenceLines(`${merchant}\nFuel $50.00\n$50.00`);
+
+    assert.deepEqual(selectTotal(lines, "USD"), {
+      amountMinor: 5000,
+      evidence: { lineIndex: 2, text: "$50.00" },
+    }, merchant);
+  }
+});
+
+test("column alignment does not discard a heading to force a value pairing", () => {
+  const lines = evidenceLines("PAYMENT DETAILS\nSUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03");
+
+  assert.equal(selectTotal(lines, "USD"), null);
+});
+
+test("column alignment still counts payment-method labels", () => {
+  const lines = evidenceLines("SUBTOTAL:\nTAX:\nVISA:\nTOTAL:\n5.50\n0.53\n4.03\n6.03");
+
+  assert.deepEqual(selectTotal(lines, "USD"), {
+    amountMinor: 603,
+    evidence: { lineIndex: 7, text: "6.03" },
+  });
+});
+
+test("a complete column keeps labels outside the recognized payment vocabulary", () => {
+  for (const label of ["SHIPPING:", "SERVICE CHARGE"]) {
+    const lines = evidenceLines(`SUBTOTAL:\n${label}\nTAX:\nTOTAL:\n5.50\n2.00\n0.53\n8.03`);
+
+    assert.deepEqual(selectTotal(lines, "USD"), {
+      amountMinor: 803,
+      evidence: { lineIndex: 7, text: "8.03" },
+    }, label);
+  }
+});
+
+test("an incomplete column cannot discard an unknown label when the total is missing", () => {
+  // P1 review of #13: omitting the total's value must not make SHIPPING
+  // positionless and hand its 2.00 to TOTAL.
+  for (const label of ["SHIPPING", "SHIPPING:", "SERVICE CHARGE", "배송비", "SHIPPING DETAILS"]) {
+    const lines = evidenceLines(`SUBTOTAL\nTOTAL\n${label}\nTAX\n5.50\n2.00\n0.53`);
+
+    assert.equal(selectTotal(lines, "USD"), null, label);
+  }
+});
+
+test("a recognized heading does not make unknown column labels disposable", () => {
+  const lines = evidenceLines("PAYMENT DETAILS\nSUBTOTAL\nTOTAL\nSHIPPING\nTAX\n5.50\n2.00\n0.53");
+
+  assert.equal(selectTotal(lines, "USD"), null);
+});
+
+test("a trailing section amount cannot fill a missing total under a generic heading", () => {
+  const lines = evidenceLines("PAYMENT DETAILS\nSUBTOTAL\nTOTAL\nTAX\n5.50\n0.53\n10.00");
+
+  assert.equal(selectTotal(lines, "USD"), null);
+});
+
+test("card fragments without their observed payment heading retain column positions", () => {
+  for (const fragment of ["카", "드:", "카\n드:"]) {
+    const lines = evidenceLines(`SUBTOTAL\nTOTAL\n${fragment}\nTAX\n5.50\n2.00\n0.53`);
+
+    assert.equal(selectTotal(lines, "USD"), null, fragment);
+  }
 });
 
 test("selectTotal reads a Korean label whose characters are letter-spaced", () => {
