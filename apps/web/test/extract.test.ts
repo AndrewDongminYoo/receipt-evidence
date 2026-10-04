@@ -15,7 +15,7 @@ const PAGE = {
   ],
 };
 
-test("a column-flattened paid total verifies and anchors to its unchanged amount line", async () => {
+test("an ambiguous payment block remains missing through fake-provider extraction", async () => {
   const page = {
     text: COLUMN_PAYMENT_TEXT,
     lines: COLUMN_PAYMENT_LINES.map((text, index) => ({
@@ -23,20 +23,19 @@ test("a column-flattened paid total verifies and anchors to its unchanged amount
       frame: { x: 0, y: index * 10, width: 100, height: 10 },
     })),
   };
-  const client = { async complete() { return { items: [] }; } };
+  let missingFields: readonly string[] = [];
+  const client = {
+    async complete(input: { missingFields: readonly string[] }) {
+      missingFields = input.missingFields;
+      return { items: [] };
+    },
+  };
   const result = await extract({ pages: [page] }, client, new Date(2026, 7, 29));
 
-  assert.deepEqual(result.fields.paidTotal, {
-    value: 72000,
-    source: "parser",
-    verified: true,
-    evidence: {
-      pageIndex: 0,
-      excerpt: "72,000",
-      box: { x: 0, y: 120, width: 100, height: 10 },
-    },
-  });
-  assert.equal(result.unverified.includes("paidTotal"), false);
+  assert.ok(missingFields.includes("paidTotal"));
+  assert.equal(result.fields.paidTotal, undefined);
+  assert.equal(result.arithmetic.claimedTotalMinor, null);
+  assert.equal(result.arithmetic.agrees, null);
 });
 
 test("a model item backed by real evidence is verified and anchored", async () => {

@@ -38,7 +38,6 @@ export const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\
 // A row naming a count is the paid total only when it also carries money:
 // `TOTAL 2 ITEMS $24.95` is a total, `TOTAL NUMBER OF ITEMS SOLD - 10` is a tally.
 const COUNT_LABEL = /\b(count|number|items?|sold|qty|quantity)\b|수량|개수/i;
-const PAYMENT_SECTION_HEADING = /^(?:-\s*)?(?:결제\s*수단\s*내역|payment\s+details):?$/i;
 // Exported: currency.ts's `_splitLabelCurrency` port reuses the same lookahead.
 export const SPLIT_TOTAL_LOOKAHEAD = 2;
 
@@ -86,24 +85,15 @@ function isLabelRow(line: string, currency: Currency): boolean {
   return parseAmountMinor(line, currency) === null && NAMED_ITEM.test(line);
 }
 
-/** Remove only positively identified payment headings and the exact fragment
- * sequence observed before one in #10. Unknown labels retain their slots:
- * discarding SHIPPING when OCR omitted a value can pair its amount to TOTAL.
- * Even isolated card fragments remain labels outside this observed context. */
-function withoutColumnNoise(labels: OcrEvidence[]): OcrEvidence[] {
-  const retained: OcrEvidence[] = [];
-  for (let index = 0; index < labels.length; index++) {
-    const line = labels[index];
-    if (
-      line.text === "카" && labels[index + 1]?.text === "드:" &&
-      PAYMENT_SECTION_HEADING.test(labels[index + 2]?.text ?? "")
-    ) {
-      index += 2;
-      continue;
-    }
-    if (!PAYMENT_SECTION_HEADING.test(line.text)) retained.push(line);
-  }
-  return retained;
+/** A bare figure label can include a currency annotation or DUE suffix.
+ * Merely containing TOTAL or DISCOUNT (as in a merchant name) does not
+ * claim the following value. */
+function endsWithLabel(text: string, pattern: RegExp): boolean {
+  const label = text.replace(/:\s*$/, "").trim()
+    .replace(/\s*\((?:USD|KRW)\)$/i, "")
+    .replace(/\s+DUE$/i, "").trim();
+  const match = pattern.exec(label);
+  return match !== null && match.index + match[0].length === label.length;
 }
 
 /** Pairs a total label with its value when OCR flattens a two-column block.
@@ -125,22 +115,16 @@ function columnAlignedValue(
   while (end + 1 < lines.length && isLabelRow(lines[end + 1].text, currency)) {
     end++;
   }
-  let labels = lines.slice(start, end + 1);
-  if (labels.length < 2) return null;
+  const labels = end - start + 1;
+  if (labels < 2) return null;
   const values: OcrEvidence[] = [];
   for (let index = end + 1; index < lines.length; index++) {
     if (!isSplitTotalValue(lines[index], currency)) break;
     values.push(lines[index]);
   }
-  // Preserve the port's pairing whenever every text row has a value. If
-  // recognized fragments/headings made that impossible, remove only those
-  // before the short lookahead can take an unrelated quantity. An unknown
-  // row might name a figure whose value OCR dropped, so never discard it.
-  if (values.length < labels.length) {
-    labels = withoutColumnNoise(labels);
-    if (labels.length < 2) return null;
-  }
-  if (values.length < labels.length) return null;
+  // Do not remove text rows to make these counts agree. A missing value and
+  // an unrelated later amount can mimic a complete column after filtering.
+  if (values.length < labels) return null;
   // Positional pairing assumes the labels and the values came out in the same
   // order, and OCR does not guarantee it. On the 7-Eleven capture Vision put
   // the big bold `합계` ABOVE the `부  가  세` row it sits below on paper, so
@@ -157,7 +141,7 @@ function columnAlignedValue(
   // already encodes as the last resort, applied one level earlier.
   const marked = values.filter((value) => CURRENCY_SYMBOL.test(value.text));
   if (marked.length === 1) return marked[0] as OcrEvidence;
-  return values[labels.indexOf(lines[labelIndex])];
+  return values[labelIndex - start];
 }
 
 /** Finds the value of a bare total label in the rows below it.
@@ -172,6 +156,16 @@ function splitTotalValueAfter(
 ): OcrEvidence | null {
   const aligned = columnAlignedValue(lines, labelIndex, currency);
   if (aligned !== null) return aligned;
+  // A failed stacked-column pairing is not a single-label receipt. The first
+  // amount can belong to an earlier figure (or an item quantity, as in #10).
+  // A merchant alone above TOTAL does not claim a figure and still permits
+  // the ordinary following-line path. Preserve every label and fail closed
+  // when another figure participates in the same text run.
+  for (let index = labelIndex - 1; index >= 0 && isLabelRow(lines[index].text, currency); index--) {
+    const text = lines[index].text;
+    if (isTenderPaymentLine(text) || [TOTAL_LABEL, OTHER_AMOUNT_LABEL, COUNT_LABEL]
+      .some((pattern) => endsWithLabel(text, pattern))) return null;
+  }
   let skipped = 0;
   for (
     let index = labelIndex + 1;
@@ -219,6 +213,15 @@ function namesAnotherFigure(line: string): boolean {
   if (OTHER_AMOUNT_LABEL.test(line)) return true;
   if (!COUNT_LABEL.test(line)) return false;
   return !WON_MARKER.test(line) && !DOLLAR_MARKER.test(line);
+}
+
+/** An ordinary paid-total label prevents a rejected split total from being
+ * replaced with an unrelated amount. Card-payment rows remain settlement
+ * candidates with their own metadata/failure handling. Shared with analyze
+ * so its largest-amount fallback cannot undo this refusal. */
+export function hasPaidTotalLabel(lines: OcrEvidence[]): boolean {
+  return lines.some((line) => endsWithLabel(line.text, TOTAL_LABEL) &&
+    !namesAnotherFigure(line.text) && !CARD_PAYMENT_TOTAL_LABEL.test(line.text));
 }
 
 /** The last resort for a receipt with no total label: a row that is a
@@ -274,5 +277,7 @@ export function selectTotal(lines: OcrEvidence[], currency: Currency): SelectedT
     }
     return { amountMinor, evidence: value };
   }
-  return cardPayment ?? currencyMarkedEvidence(lines, currency);
+  // A known-but-unresolved ordinary total also outranks a card contribution:
+  // a split tender must not replace the whole receipt's missing total.
+  return hasPaidTotalLabel(lines) ? null : (cardPayment ?? currencyMarkedEvidence(lines, currency));
 }

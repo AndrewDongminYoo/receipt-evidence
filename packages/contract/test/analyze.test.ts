@@ -1,15 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyze } from "../src/analyze.ts";
-import { COLUMN_PAYMENT_TEXT } from "./fixtures/column-payment.ts";
+import { AMBIGUOUS_PAYMENT_CASES, COLUMN_PAYMENT_TEXT } from "./fixtures/column-payment.ts";
 
 const REFERENCE = new Date(2026, 6, 30);
 
-test("analyze reads the paid total from the column-flattened payment block", () => {
-  assert.deepEqual(analyze(COLUMN_PAYMENT_TEXT, new Date(2026, 7, 29)).paidTotal, {
-    value: 72000,
-    evidence: { lineIndex: 12, text: "72,000" },
+test("analyze leaves the column-flattened payment block unknown", () => {
+  assert.equal(analyze(COLUMN_PAYMENT_TEXT, new Date(2026, 7, 29)).paidTotal, null);
+});
+
+for (const fixture of AMBIGUOUS_PAYMENT_CASES) {
+  test(`analyze cannot replace an ambiguous total with the largest amount: ${fixture.name}`, () => {
+    assert.equal(analyze(fixture.text, REFERENCE).paidTotal, null);
   });
+}
+
+test("analyze retains an explicit total and its unchanged evidence", () => {
+  assert.deepEqual(analyze(`${COLUMN_PAYMENT_TEXT}\n결제 금액: 72,000`, REFERENCE).paidTotal, {
+    value: 72000,
+    evidence: { lineIndex: 15, text: "결제 금액: 72,000" },
+  });
+});
+
+test("merchant financial words do not suppress otherwise supported totals", () => {
+  for (const text of [
+    "TOTAL WINE & MORE\nWine bottle $12.00\n$12.00",
+    "TOTAL WINE & MORE\nTOTAL\n$12.00",
+    "DISCOUNT STORE\nTOTAL\n$12.00",
+  ]) {
+    assert.equal(analyze(text, REFERENCE).paidTotal?.value, 1200, text);
+  }
 });
 
 test("analyze fills every field from a clean receipt", () => {
