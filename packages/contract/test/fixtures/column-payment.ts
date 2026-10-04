@@ -47,4 +47,12 @@ export const AMBIGUOUS_PAYMENT_CASES = [
     name: `unresolved ${label} and an unrelated trailing amount`,
     text: `PAYMENT DETAILS\nSUBTOTAL\n${label}\nTAX\n5.50\n0.53\n$10.00`,
   })),
+  {
+    name: "a missing total before its tax label",
+    text: "TOTAL\nTAX\n0.53",
+  },
+  {
+    name: "a missing total before tax and a later currency amount",
+    text: "TOTAL\nTAX\n0.53\n---\n$10.00",
+  },
 ];

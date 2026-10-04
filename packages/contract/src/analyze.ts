@@ -9,7 +9,7 @@
 import type { Currency } from "./types.ts";
 import { evidenceLines, type OcrEvidence } from "./evidence.ts";
 import { selectDate, parseDate } from "./dates.ts";
-import { selectTotal, isAmountOnlyRow, hasPaidTotalLabel } from "./total.ts";
+import { selectTotal, isAmountOnlyRow, hasUnresolvedTotalColumn } from "./total.ts";
 import { parseAmountMinor, withoutDateOrTime, AMOUNT_PATTERN_G } from "./amounts.ts";
 import { inferCurrency } from "./currency.ts";
 import { extractItems, type ParsedItem } from "./items.ts";
@@ -102,9 +102,9 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
 
   const paidTotal: ParsedField<number> | null =
     total === null
-      // A rejected labelled total is unknown, not permission to publish the
-      // largest unrelated number. Keep the port's no-label fallback only.
-      ? (hasPaidTotalLabel(lines) ? null : largestAmount(lines))
+      // A rejected total column is unknown, not permission to publish the
+      // largest unrelated number. Preserve other existing fallback cases.
+      ? (hasUnresolvedTotalColumn(lines, PROVISIONAL_CURRENCY) ? null : largestAmount(lines))
       : { value: total.amountMinor, evidence: total.evidence };
 
   const currency = inferCurrency(rawText, lines, total?.evidence ?? null);

@@ -96,6 +96,20 @@ function endsWithLabel(text: string, pattern: RegExp): boolean {
   return match !== null && match.index + match[0].length === label.length;
 }
 
+/** Another figure in the same label run distinguishes a stacked total
+ * column from a merchant name above a priced item, such as TOTAL / Fuel. */
+function hasOtherFigureLabel(lines: OcrEvidence[], labelIndex: number, currency: Currency): boolean {
+  for (const step of [-1, 1]) {
+    for (let index = labelIndex + step; index >= 0 && index < lines.length &&
+      isLabelRow(lines[index].text, currency); index += step) {
+      const text = lines[index].text;
+      if (isTenderPaymentLine(text) || [TOTAL_LABEL, OTHER_AMOUNT_LABEL, COUNT_LABEL]
+        .some((pattern) => endsWithLabel(text, pattern))) return true;
+    }
+  }
+  return false;
+}
+
 /** Pairs a total label with its value when OCR flattens a two-column block.
  *
  * A receipt printing `SUBTOTAL:`, `TAX:`, `TOTAL:`, `VISA:` above `5.50`,
@@ -161,11 +175,7 @@ function splitTotalValueAfter(
   // A merchant alone above TOTAL does not claim a figure and still permits
   // the ordinary following-line path. Preserve every label and fail closed
   // when another figure participates in the same text run.
-  for (let index = labelIndex - 1; index >= 0 && isLabelRow(lines[index].text, currency); index--) {
-    const text = lines[index].text;
-    if (isTenderPaymentLine(text) || [TOTAL_LABEL, OTHER_AMOUNT_LABEL, COUNT_LABEL]
-      .some((pattern) => endsWithLabel(text, pattern))) return null;
-  }
+  if (hasOtherFigureLabel(lines, labelIndex, currency)) return null;
   let skipped = 0;
   for (
     let index = labelIndex + 1;
@@ -215,13 +225,14 @@ function namesAnotherFigure(line: string): boolean {
   return !WON_MARKER.test(line) && !DOLLAR_MARKER.test(line);
 }
 
-/** An ordinary paid-total label prevents a rejected split total from being
- * replaced with an unrelated amount. Card-payment rows remain settlement
- * candidates with their own metadata/failure handling. Shared with analyze
- * so its largest-amount fallback cannot undo this refusal. */
-export function hasPaidTotalLabel(lines: OcrEvidence[]): boolean {
-  return lines.some((line) => endsWithLabel(line.text, TOTAL_LABEL) &&
-    !namesAnotherFigure(line.text) && !CARD_PAYMENT_TOTAL_LABEL.test(line.text));
+/** Call after total selection fails: an unresolved total column prevents
+ * fallbacks from replacing it with an unrelated amount. A lone TOTAL above
+ * an item can be a merchant name and retains the existing fallback behavior.
+ * Shared with analyze so its largest-amount fallback cannot undo refusal. */
+export function hasUnresolvedTotalColumn(lines: OcrEvidence[], currency: Currency): boolean {
+  return lines.some((line, index) => endsWithLabel(line.text, TOTAL_LABEL) &&
+    !namesAnotherFigure(line.text) && !CARD_PAYMENT_TOTAL_LABEL.test(line.text) &&
+    hasOtherFigureLabel(lines, index, currency));
 }
 
 /** The last resort for a receipt with no total label: a row that is a
@@ -277,7 +288,7 @@ export function selectTotal(lines: OcrEvidence[], currency: Currency): SelectedT
     }
     return { amountMinor, evidence: value };
   }
-  // A known-but-unresolved ordinary total also outranks a card contribution:
+  // A known-but-unresolved total column also outranks a card contribution:
   // a split tender must not replace the whole receipt's missing total.
-  return hasPaidTotalLabel(lines) ? null : (cardPayment ?? currencyMarkedEvidence(lines, currency));
+  return hasUnresolvedTotalColumn(lines, currency) ? null : (cardPayment ?? currencyMarkedEvidence(lines, currency));
 }

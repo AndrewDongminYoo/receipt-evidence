@@ -153,6 +153,17 @@ test("a merchant total token does not disable an unlabelled currency-marked tota
   });
 });
 
+test("a merchant name ending in TOTAL does not suppress a standalone amount after an item", () => {
+  for (const merchant of ["TOTAL", "SHOP TOTAL"]) {
+    const lines = evidenceLines(`${merchant}\nFuel $50.00\n$50.00`);
+
+    assert.deepEqual(selectTotal(lines, "USD"), {
+      amountMinor: 5000,
+      evidence: { lineIndex: 2, text: "$50.00" },
+    }, merchant);
+  }
+});
+
 test("column alignment does not discard a heading to force a value pairing", () => {
   const lines = evidenceLines("PAYMENT DETAILS\nSUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03");
 

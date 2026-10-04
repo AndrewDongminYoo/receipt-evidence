@@ -32,6 +32,15 @@ test("merchant financial words do not suppress otherwise supported totals", () =
   }
 });
 
+test("analyze preserves an unlabelled total when the merchant name ends in TOTAL", () => {
+  for (const merchant of ["TOTAL", "SHOP TOTAL"]) {
+    assert.deepEqual(analyze(`${merchant}\nFuel $50.00\n$50.00`, REFERENCE).paidTotal, {
+      value: 5000,
+      evidence: { lineIndex: 2, text: "$50.00" },
+    }, merchant);
+  }
+});
+
 test("analyze fills every field from a clean receipt", () => {
   const parsed = analyze(
     "Mono Market\nNoise cancelling headphones 149,000\nProtective case 40,000\n2026-07-30\nTotal 189,000\nOrder DB-240730\n",
