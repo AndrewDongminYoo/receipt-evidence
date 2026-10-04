@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyze } from "../src/analyze.ts";
+import { COLUMN_PAYMENT_TEXT } from "./fixtures/column-payment.ts";
 
 const REFERENCE = new Date(2026, 6, 30);
+
+test("analyze reads the paid total from the column-flattened payment block", () => {
+  assert.deepEqual(analyze(COLUMN_PAYMENT_TEXT, new Date(2026, 7, 29)).paidTotal, {
+    value: 72000,
+    evidence: { lineIndex: 12, text: "72,000" },
+  });
+});
 
 test("analyze fills every field from a clean receipt", () => {
   const parsed = analyze(

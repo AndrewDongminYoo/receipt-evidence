@@ -38,6 +38,10 @@ export const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\
 // A row naming a count is the paid total only when it also carries money:
 // `TOTAL 2 ITEMS $24.95` is a total, `TOTAL NUMBER OF ITEMS SOLD - 10` is a tally.
 const COUNT_LABEL = /\b(count|number|items?|sold|qty|quantity)\b|수량|개수/i;
+// These rows occupy a slot in an amount column without necessarily being
+// candidates for the paid total. In particular, 총합계 must count even
+// though TOTAL_LABEL deliberately requires a boundary before 합계.
+const COLUMN_PAYMENT_LABEL = /\b(card|cash|visa|mastercard)\b|합\s*계|카\s*드|현\s*금/i;
 // Exported: currency.ts's `_splitLabelCurrency` port reuses the same lookahead.
 export const SPLIT_TOTAL_LOOKAHEAD = 2;
 
@@ -85,6 +89,16 @@ function isLabelRow(line: string, currency: Currency): boolean {
   return parseAmountMinor(line, currency) === null && NAMED_ITEM.test(line);
 }
 
+/** Text inside a label column need not name a figure: OCR can interleave
+ * card fragments (`카`, `드:`) and headings (`-결제 수단 내역`). Walk
+ * across those rows, but do not give them positions in the amount column.
+ * Used only to recover an otherwise incomplete column (#10): a complete
+ * column can contain labels outside this vocabulary, such as SHIPPING. */
+function namesColumnFigure(line: string): boolean {
+  return TOTAL_LABEL.test(line) || OTHER_AMOUNT_LABEL.test(line) ||
+    COUNT_LABEL.test(line) || COLUMN_PAYMENT_LABEL.test(line) || isTenderPaymentLine(line);
+}
+
 /** Pairs a total label with its value when OCR flattens a two-column block.
  *
  * A receipt printing `SUBTOTAL:`, `TAX:`, `TOTAL:`, `VISA:` above `5.50`,
@@ -104,14 +118,21 @@ function columnAlignedValue(
   while (end + 1 < lines.length && isLabelRow(lines[end + 1].text, currency)) {
     end++;
   }
-  const labels = end - start + 1;
-  if (labels < 2) return null;
+  let labels = lines.slice(start, end + 1);
+  if (labels.length < 2) return null;
   const values: OcrEvidence[] = [];
   for (let index = end + 1; index < lines.length; index++) {
     if (!isSplitTotalValue(lines[index], currency)) break;
     values.push(lines[index]);
   }
-  if (values.length < labels) return null;
+  // Preserve the port's pairing whenever every text row has a value. If
+  // fragments/headings made that impossible, retry with only rows naming
+  // figures before the short lookahead can take an unrelated quantity.
+  if (values.length < labels.length) {
+    labels = labels.filter((line) => namesColumnFigure(line.text));
+    if (labels.length < 2) return null;
+  }
+  if (values.length < labels.length) return null;
   // Positional pairing assumes the labels and the values came out in the same
   // order, and OCR does not guarantee it. On the 7-Eleven capture Vision put
   // the big bold `합계` ABOVE the `부  가  세` row it sits below on paper, so
@@ -128,7 +149,7 @@ function columnAlignedValue(
   // already encodes as the last resort, applied one level earlier.
   const marked = values.filter((value) => CURRENCY_SYMBOL.test(value.text));
   if (marked.length === 1) return marked[0] as OcrEvidence;
-  return values[labelIndex - start];
+  return values[labels.indexOf(lines[labelIndex])];
 }
 
 /** Finds the value of a bare total label in the rows below it.

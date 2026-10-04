@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { ExtractionResponseSchema } from "@receipt-evidence/contract/schema";
 import { extract, toIsoDate } from "../src/extract.ts";
+import { COLUMN_PAYMENT_LINES, COLUMN_PAYMENT_TEXT } from "../../../packages/contract/test/fixtures/column-payment.ts";
 
 const PAGE = {
   text: "GS25\n2026.07.02 20:20:50\n커피 4,500\n합계 4,500\n",
@@ -13,6 +14,30 @@ const PAGE = {
     { text: "합계 4,500", frame: { x: 0, y: 40, width: 10, height: 10 } },
   ],
 };
+
+test("a column-flattened paid total verifies and anchors to its unchanged amount line", async () => {
+  const page = {
+    text: COLUMN_PAYMENT_TEXT,
+    lines: COLUMN_PAYMENT_LINES.map((text, index) => ({
+      text,
+      frame: { x: 0, y: index * 10, width: 100, height: 10 },
+    })),
+  };
+  const client = { async complete() { return { items: [] }; } };
+  const result = await extract({ pages: [page] }, client, new Date(2026, 7, 29));
+
+  assert.deepEqual(result.fields.paidTotal, {
+    value: 72000,
+    source: "parser",
+    verified: true,
+    evidence: {
+      pageIndex: 0,
+      excerpt: "72,000",
+      box: { x: 0, y: 120, width: 100, height: 10 },
+    },
+  });
+  assert.equal(result.unverified.includes("paidTotal"), false);
+});
 
 test("a model item backed by real evidence is verified and anchored", async () => {
   // No `quantity`: the line reads `커피 4,500` and states no count, and the

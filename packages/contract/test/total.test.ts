@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { evidenceLines } from "../src/evidence.ts";
 import { isAmountOnlyRow, selectTotal } from "../src/total.ts";
+import { COLUMN_PAYMENT_LINES, COLUMN_PAYMENT_TEXT } from "./fixtures/column-payment.ts";
 
 test("selectTotal ignores discount, subtotal and tax rows", () => {
   const lines = evidenceLines("소계 20,000\n할인금액 -6,600\n합계 14,800\n");
@@ -110,6 +111,60 @@ test("selectTotal pairs stacked labels with their column-aligned values", () => 
   const lines = evidenceLines("SUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03\n");
 
   assert.equal(selectTotal(lines, "USD")?.evidence.text, "6.03");
+});
+
+test("selectTotal aligns the payment block past fragments and a section heading", () => {
+  const lines = evidenceLines(COLUMN_PAYMENT_TEXT);
+  const total = selectTotal(lines, "KRW");
+
+  assert.equal(total?.amountMinor, 72000);
+  assert.deepEqual(total?.evidence, { lineIndex: 12, text: "72,000" });
+  assert.equal(total?.evidence, lines[12], "retain the original evidence object");
+});
+
+test("column alignment selects the labelled position rather than the largest amount", () => {
+  const text = COLUMN_PAYMENT_LINES.map((line, index) => index === 12 ? "90" : line).join("\n");
+
+  assert.deepEqual(selectTotal(evidenceLines(text), "KRW"), {
+    amountMinor: 90,
+    evidence: { lineIndex: 12, text: "90" },
+  });
+});
+
+test("a small amount immediately after a lone total label is still a total", () => {
+  assert.deepEqual(selectTotal(evidenceLines("TOTAL\n1"), "KRW"), {
+    amountMinor: 1,
+    evidence: { lineIndex: 1, text: "1" },
+  });
+});
+
+test("column alignment skips a merchant and a heading before English labels", () => {
+  const lines = evidenceLines("CORNER SHOP\nPAYMENT DETAILS\nSUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03");
+
+  assert.deepEqual(selectTotal(lines, "USD"), {
+    amountMinor: 603,
+    evidence: { lineIndex: 7, text: "6.03" },
+  });
+});
+
+test("column alignment still counts payment-method labels", () => {
+  const lines = evidenceLines("SUBTOTAL:\nTAX:\nVISA:\nTOTAL:\n5.50\n0.53\n4.03\n6.03");
+
+  assert.deepEqual(selectTotal(lines, "USD"), {
+    amountMinor: 603,
+    evidence: { lineIndex: 7, text: "6.03" },
+  });
+});
+
+test("a complete column keeps labels outside the recognized payment vocabulary", () => {
+  for (const label of ["SHIPPING:", "SERVICE CHARGE"]) {
+    const lines = evidenceLines(`SUBTOTAL:\n${label}\nTAX:\nTOTAL:\n5.50\n2.00\n0.53\n8.03`);
+
+    assert.deepEqual(selectTotal(lines, "USD"), {
+      amountMinor: 803,
+      evidence: { lineIndex: 7, text: "8.03" },
+    }, label);
+  }
 });
 
 test("selectTotal reads a Korean label whose characters are letter-spaced", () => {
