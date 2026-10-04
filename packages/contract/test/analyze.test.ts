@@ -27,6 +27,9 @@ test("merchant financial words do not suppress otherwise supported totals", () =
     "TOTAL WINE & MORE\nWine bottle $12.00\n$12.00",
     "TOTAL WINE & MORE\nTOTAL\n$12.00",
     "DISCOUNT STORE\nTOTAL\n$12.00",
+    "BOB'S DISCOUNT\nTOTAL\n$12.00",
+    "BOB'S TAX\nTOTAL\n$12.00",
+    "SHOP TOTAL\nTOTAL\n$12.00",
   ]) {
     assert.equal(analyze(text, REFERENCE).paidTotal?.value, 1200, text);
   }

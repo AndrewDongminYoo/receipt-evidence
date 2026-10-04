@@ -134,7 +134,7 @@ test("a small amount immediately after a lone total label is still a total", () 
 });
 
 test("merchant names containing financial words do not claim the total column", () => {
-  for (const merchant of ["TOTAL WINE & MORE", "DISCOUNT STORE", "TAX SHOP"]) {
+  for (const merchant of ["TOTAL WINE & MORE", "DISCOUNT STORE", "TAX SHOP", "BOB'S DISCOUNT", "BOB'S TAX", "SHOP TOTAL"]) {
     const lines = evidenceLines(`${merchant}\nTOTAL\n$12.00`);
 
     assert.deepEqual(selectTotal(lines, "USD"), {

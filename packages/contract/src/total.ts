@@ -93,7 +93,14 @@ function endsWithLabel(text: string, pattern: RegExp): boolean {
     .replace(/\s*\((?:USD|KRW)\)$/i, "")
     .replace(/\s+DUE$/i, "").trim();
   const match = pattern.exec(label);
-  return match !== null && match.index + match[0].length === label.length;
+  if (match === null || match.index + match[0].length !== label.length) return false;
+  // English merchant names can end in a financial word too (BOB'S DISCOUNT).
+  // Only known figure qualifiers may precede it. Korean compound labels
+  // retain their existing prefix handling, e.g. 총수량 and 노마진 소계.
+  const prefix = label.slice(0, match.index).trim();
+  return !/[A-Za-z]/.test(prefix) ||
+    (pattern === OTHER_AMOUNT_LABEL && /^tax$/i.test(match[0]) && /^(sales|state|local|city)$/i.test(prefix)) ||
+    (pattern === COUNT_LABEL && /^(total|item)$/i.test(prefix));
 }
 
 /** Another figure in the same label run distinguishes a stacked total

@@ -55,4 +55,8 @@ export const AMBIGUOUS_PAYMENT_CASES = [
     name: "a missing total before tax and a later currency amount",
     text: "TOTAL\nTAX\n0.53\n---\n$10.00",
   },
+  ...["SALES TAX", "TOTAL ITEMS"].map((label) => ({
+    name: `a qualified ${label} before a missing total`,
+    text: `${label}\nTOTAL\n0.53`,
+  })),
 ];
