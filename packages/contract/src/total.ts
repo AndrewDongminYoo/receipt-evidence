@@ -38,10 +38,7 @@ export const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\
 // A row naming a count is the paid total only when it also carries money:
 // `TOTAL 2 ITEMS $24.95` is a total, `TOTAL NUMBER OF ITEMS SOLD - 10` is a tally.
 const COUNT_LABEL = /\b(count|number|items?|sold|qty|quantity)\b|수량|개수/i;
-// These rows occupy a slot in an amount column without necessarily being
-// candidates for the paid total. In particular, 총합계 must count even
-// though TOTAL_LABEL deliberately requires a boundary before 합계.
-const COLUMN_PAYMENT_LABEL = /\b(card|cash|visa|mastercard)\b|합\s*계|카\s*드|현\s*금/i;
+const PAYMENT_SECTION_HEADING = /^(?:-\s*)?(?:결제\s*수단\s*내역|payment\s+details):?$/i;
 // Exported: currency.ts's `_splitLabelCurrency` port reuses the same lookahead.
 export const SPLIT_TOTAL_LOOKAHEAD = 2;
 
@@ -89,14 +86,24 @@ function isLabelRow(line: string, currency: Currency): boolean {
   return parseAmountMinor(line, currency) === null && NAMED_ITEM.test(line);
 }
 
-/** Text inside a label column need not name a figure: OCR can interleave
- * card fragments (`카`, `드:`) and headings (`-결제 수단 내역`). Walk
- * across those rows, but do not give them positions in the amount column.
- * Used only to recover an otherwise incomplete column (#10): a complete
- * column can contain labels outside this vocabulary, such as SHIPPING. */
-function namesColumnFigure(line: string): boolean {
-  return TOTAL_LABEL.test(line) || OTHER_AMOUNT_LABEL.test(line) ||
-    COUNT_LABEL.test(line) || COLUMN_PAYMENT_LABEL.test(line) || isTenderPaymentLine(line);
+/** Remove only positively identified payment headings and the exact fragment
+ * sequence observed before one in #10. Unknown labels retain their slots:
+ * discarding SHIPPING when OCR omitted a value can pair its amount to TOTAL.
+ * Even isolated card fragments remain labels outside this observed context. */
+function withoutColumnNoise(labels: OcrEvidence[]): OcrEvidence[] {
+  const retained: OcrEvidence[] = [];
+  for (let index = 0; index < labels.length; index++) {
+    const line = labels[index];
+    if (
+      line.text === "카" && labels[index + 1]?.text === "드:" &&
+      PAYMENT_SECTION_HEADING.test(labels[index + 2]?.text ?? "")
+    ) {
+      index += 2;
+      continue;
+    }
+    if (!PAYMENT_SECTION_HEADING.test(line.text)) retained.push(line);
+  }
+  return retained;
 }
 
 /** Pairs a total label with its value when OCR flattens a two-column block.
@@ -126,10 +133,11 @@ function columnAlignedValue(
     values.push(lines[index]);
   }
   // Preserve the port's pairing whenever every text row has a value. If
-  // fragments/headings made that impossible, retry with only rows naming
-  // figures before the short lookahead can take an unrelated quantity.
+  // recognized fragments/headings made that impossible, remove only those
+  // before the short lookahead can take an unrelated quantity. An unknown
+  // row might name a figure whose value OCR dropped, so never discard it.
   if (values.length < labels.length) {
-    labels = labels.filter((line) => namesColumnFigure(line.text));
+    labels = withoutColumnNoise(labels);
     if (labels.length < 2) return null;
   }
   if (values.length < labels.length) return null;

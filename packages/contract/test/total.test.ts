@@ -138,12 +138,12 @@ test("a small amount immediately after a lone total label is still a total", () 
   });
 });
 
-test("column alignment skips a merchant and a heading before English labels", () => {
-  const lines = evidenceLines("CORNER SHOP\nPAYMENT DETAILS\nSUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03");
+test("column alignment skips an explicit payment heading before English labels", () => {
+  const lines = evidenceLines("PAYMENT DETAILS\nSUBTOTAL:\nTAX:\nTOTAL:\n5.50\n0.53\n6.03");
 
   assert.deepEqual(selectTotal(lines, "USD"), {
     amountMinor: 603,
-    evidence: { lineIndex: 7, text: "6.03" },
+    evidence: { lineIndex: 6, text: "6.03" },
   });
 });
 
@@ -164,6 +164,30 @@ test("a complete column keeps labels outside the recognized payment vocabulary",
       amountMinor: 803,
       evidence: { lineIndex: 7, text: "8.03" },
     }, label);
+  }
+});
+
+test("an incomplete column cannot discard an unknown label when the total is missing", () => {
+  // P1 review of #13: omitting the total's value must not make SHIPPING
+  // positionless and hand its 2.00 to TOTAL.
+  for (const label of ["SHIPPING", "SHIPPING:", "SERVICE CHARGE", "배송비", "SHIPPING DETAILS"]) {
+    const lines = evidenceLines(`SUBTOTAL\nTOTAL\n${label}\nTAX\n5.50\n2.00\n0.53`);
+
+    assert.equal(selectTotal(lines, "USD"), null, label);
+  }
+});
+
+test("a recognized heading does not make unknown column labels disposable", () => {
+  const lines = evidenceLines("PAYMENT DETAILS\nSUBTOTAL\nTOTAL\nSHIPPING\nTAX\n5.50\n2.00\n0.53");
+
+  assert.equal(selectTotal(lines, "USD"), null);
+});
+
+test("card fragments without their observed payment heading retain column positions", () => {
+  for (const fragment of ["카", "드:", "카\n드:"]) {
+    const lines = evidenceLines(`SUBTOTAL\nTOTAL\n${fragment}\nTAX\n5.50\n2.00\n0.53`);
+
+    assert.equal(selectTotal(lines, "USD"), null, fragment);
   }
 });
 
