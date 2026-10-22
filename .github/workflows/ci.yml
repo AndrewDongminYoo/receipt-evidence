@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # checkout leaves its token in .git/config by default, where any
           # later step (or a dependency's install script) could reuse it.
