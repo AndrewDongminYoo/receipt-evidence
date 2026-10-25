@@ -15,7 +15,7 @@ jobs:
           # checkout leaves its token in .git/config by default, where any
           # later step (or a dependency's install script) could reuse it.
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 24
