@@ -29,7 +29,7 @@ A receipt's OCR text goes through a deterministic parser first; a model is asked
 
 `apps/web/src/extract.ts` is the pipeline. `apps/web/src/model-client.ts` is the only place that talks to OpenAI, and `extract()` takes the client as a parameter so tests substitute a fake — **no test in this repository makes a network call.**
 
-`apps/mobile` is checked by its own `tsconfig.json` (React Native needs Expo's compiler settings), which the root `typecheck` script runs after the workspace one; `tsconfig.base.json` excludes it. Its testable logic lives in `src/capture.ts`, which imports the scanner for *types only* so `node --test` never loads React Native.
+`apps/mobile` is checked by its own `tsconfig.json` (React Native needs Expo's compiler settings), which the root `typecheck` script runs after the workspace one; `tsconfig.base.json` excludes it. Its testable logic lives in `src/capture.ts`, which imports the scanner for _types only_ so `node --test` never loads React Native.
 
 ## Invariants that will bite
 

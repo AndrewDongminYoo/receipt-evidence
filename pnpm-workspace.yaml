@@ -1,6 +1,6 @@
 packages:
-  - "packages/*"
-  - "apps/*"
+  - packages/*
+  - apps/*
 
 # Security overrides. Selectors are pinned per line because these advisories
 # patch only one 0.x line each; a bare name would drag the other consumer across
