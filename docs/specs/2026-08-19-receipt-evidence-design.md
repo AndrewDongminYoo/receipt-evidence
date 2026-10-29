@@ -16,6 +16,7 @@ This one answers two questions the usual demo leaves open.
 
    So the honest finding is not "a parser cannot do items". It is that a deterministic parser's failure mode is the same as a language model's — confident wrongness, with no signal attached telling you which half you are looking at.
    That is the case for this project's whole shape: evidence on every value, arithmetic recomputed independently, and anything unsupported marked rather than presented.
+
 2. **What happens when the model is wrong?**
    Every value must quote a source excerpt; deterministic code then checks the excerpt exists in the OCR text, checks the value appears inside the excerpt, and recomputes the arithmetic itself.
    A value that cannot show its evidence is surfaced as unverified rather than presented as fact.
@@ -68,6 +69,7 @@ Its tests need no network and no device.
    **One rule for failure, everywhere:** a value that fails any check is kept, marked `verified: false`, and listed under `unverified`.
    It is never silently dropped and never presented as fact.
    Dropping it would hide the interesting half of the demo; presenting it would be the exact failure this project exists to prevent.
+
 6. **Anchoring (server).** Each surviving excerpt is matched back to `ocrLines` to recover its bounding box.
 7. **Presentation (app and web).** The mobile app receives `ocrLines` from its scanner and draws a box over each anchored field; every captured page is shown, each carrying only the boxes whose evidence names that page. The web demo accepts up to three page blocks of separately supplied OCR text and OCR-line geometry, and draws boxes per page only when that geometry is present. Both surfaces mark unverified values and show arithmetic mismatches rather than silently correcting them.
 
@@ -75,20 +77,55 @@ Its tests need no network and no device.
 
 ```json
 {
-  "fields": { "merchant": { "value": "7-Eleven", "source": "model", "evidence": { "pageIndex": 0, "excerpt": "...", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } }, "verified": true } },
+  "fields": {
+    "merchant": {
+      "value": "7-Eleven",
+      "source": "model",
+      "evidence": {
+        "pageIndex": 0,
+        "excerpt": "...",
+        "box": { "x": 0, "y": 0, "width": 0, "height": 0 }
+      },
+      "verified": true
+    }
+  },
   "items": [
     {
       "name": "디아)기네스드래프트440ml",
       "quantity": 4,
       "amountMinor": 13000,
       "source": "model",
-      "nameEvidence": { "pageIndex": 0, "excerpt": "디아)기네스드래프트440ml", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
-      "amountEvidence": { "pageIndex": 0, "excerpt": "13,000", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } },
+      "nameEvidence": {
+        "pageIndex": 0,
+        "excerpt": "디아)기네스드래프트440ml",
+        "box": { "x": 0, "y": 0, "width": 0, "height": 0 }
+      },
+      "amountEvidence": {
+        "pageIndex": 0,
+        "excerpt": "13,000",
+        "box": { "x": 0, "y": 0, "width": 0, "height": 0 }
+      },
       "verified": true
     }
   ],
-  "tenders": [{ "value": 5000, "source": "parser", "evidence": { "pageIndex": 0, "excerpt": "상품권결제금액: 5,000", "box": { "x": 0, "y": 0, "width": 0, "height": 0 } }, "verified": true }],
-  "arithmetic": { "itemSumMinor": 13000, "claimedTotalMinor": 8000, "reconciledTenderMinor": 5000, "agrees": true },
+  "tenders": [
+    {
+      "value": 5000,
+      "source": "parser",
+      "evidence": {
+        "pageIndex": 0,
+        "excerpt": "상품권결제금액: 5,000",
+        "box": { "x": 0, "y": 0, "width": 0, "height": 0 }
+      },
+      "verified": true
+    }
+  ],
+  "arithmetic": {
+    "itemSumMinor": 13000,
+    "claimedTotalMinor": 8000,
+    "reconciledTenderMinor": 5000,
+    "agrees": true
+  },
   "unverified": [],
   "disagreements": []
 }

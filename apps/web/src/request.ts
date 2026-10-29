@@ -20,7 +20,11 @@ function isImageDataUrl(value: unknown): boolean {
 
 export function isPage(value: unknown): value is Page {
   if (typeof value !== "object" || value === null) return false;
-  const { text, lines, imageDataUrl } = value as { text?: unknown; lines?: unknown; imageDataUrl?: unknown };
+  const { text, lines, imageDataUrl } = value as {
+    text?: unknown;
+    lines?: unknown;
+    imageDataUrl?: unknown;
+  };
   if (typeof text !== "string") return false;
   if (!Array.isArray(lines)) return false;
   // A base64 image data URL, not any string. This value is forwarded verbatim
@@ -29,7 +33,10 @@ export function isPage(value: unknown): value is Page {
   if (imageDataUrl !== undefined && !isImageDataUrl(imageDataUrl)) return false;
   return lines.every((line) => {
     if (typeof line !== "object" || line === null) return false;
-    const { text: lineText, frame } = line as { text?: unknown; frame?: unknown };
+    const { text: lineText, frame } = line as {
+      text?: unknown;
+      frame?: unknown;
+    };
     if (typeof lineText !== "string" || typeof frame !== "object" || frame === null) return false;
     const box = frame as Record<string, unknown>;
     return ["x", "y", "width", "height"].every((key) => typeof box[key] === "number");

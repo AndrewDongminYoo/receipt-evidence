@@ -59,5 +59,8 @@ const styles = StyleSheet.create({
     borderColor: "#1d7a46",
     backgroundColor: "rgba(29, 122, 70, 0.12)",
   },
-  unverified: { borderColor: "#b3261e", backgroundColor: "rgba(179, 38, 30, 0.16)" },
+  unverified: {
+    borderColor: "#b3261e",
+    backgroundColor: "rgba(179, 38, 30, 0.16)",
+  },
 });

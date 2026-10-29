@@ -14,8 +14,7 @@ const EXPIRY_LABEL = /(expir|\bexp\b|유효기간)/i;
 /** Rejects a date the calendar does not have — 2026-02-31 round-trips wrong. */
 function calendarDate(year: number, month: number, day: number): Date | null {
   const date = new Date(year, month - 1, day);
-  const valid =
-    date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+  const valid = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
   return valid ? date : null;
 }
 

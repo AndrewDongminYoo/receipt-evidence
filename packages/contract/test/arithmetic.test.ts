@@ -5,13 +5,23 @@ import { checkArithmetic } from "../src/arithmetic.ts";
 test("checkArithmetic agrees when the items sum to the total", () => {
   const result = checkArithmetic([{ amountMinor: 13000 }, { amountMinor: 1700 }, { amountMinor: 100 }], 14800);
 
-  assert.deepEqual(result, { itemSumMinor: 14800, claimedTotalMinor: 14800, reconciledTenderMinor: null, agrees: true });
+  assert.deepEqual(result, {
+    itemSumMinor: 14800,
+    claimedTotalMinor: 14800,
+    reconciledTenderMinor: null,
+    agrees: true,
+  });
 });
 
 test("checkArithmetic reports a mismatch without correcting it", () => {
   const result = checkArithmetic([{ amountMinor: 13000 }], 14800);
 
-  assert.deepEqual(result, { itemSumMinor: 13000, claimedTotalMinor: 14800, reconciledTenderMinor: null, agrees: false });
+  assert.deepEqual(result, {
+    itemSumMinor: 13000,
+    claimedTotalMinor: 14800,
+    reconciledTenderMinor: null,
+    agrees: false,
+  });
 });
 
 test("checkArithmetic answers null when either side is missing", () => {

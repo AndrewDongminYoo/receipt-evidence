@@ -37,10 +37,14 @@ test("merchant financial words do not suppress otherwise supported totals", () =
 
 test("analyze preserves an unlabelled total when the merchant name ends in TOTAL", () => {
   for (const merchant of ["TOTAL", "SHOP TOTAL"]) {
-    assert.deepEqual(analyze(`${merchant}\nFuel $50.00\n$50.00`, REFERENCE).paidTotal, {
-      value: 5000,
-      evidence: { lineIndex: 2, text: "$50.00" },
-    }, merchant);
+    assert.deepEqual(
+      analyze(`${merchant}\nFuel $50.00\n$50.00`, REFERENCE).paidTotal,
+      {
+        value: 5000,
+        evidence: { lineIndex: 2, text: "$50.00" },
+      },
+      merchant,
+    );
   }
 });
 

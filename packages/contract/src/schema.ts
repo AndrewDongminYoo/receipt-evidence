@@ -126,7 +126,11 @@ const frameSchema = z.object({
   height: z.number(),
 });
 
-const evidenceRefSchema = z.object({ pageIndex, excerpt, box: frameSchema.nullable() });
+const evidenceRefSchema = z.object({
+  pageIndex,
+  excerpt,
+  box: frameSchema.nullable(),
+});
 
 const fieldSourceSchema = z.enum(["parser", "model"]);
 
@@ -174,7 +178,11 @@ export const ExtractionResponseSchema = z.object({
   }),
   unverified: z.array(z.string()),
   disagreements: z.array(
-    z.object({ path: z.string(), parserValue: amountMinor, modelValue: amountMinor }),
+    z.object({
+      path: z.string(),
+      parserValue: amountMinor,
+      modelValue: amountMinor,
+    }),
   ),
   modelReply: z.discriminatedUnion("accepted", [
     z.object({ accepted: z.literal(true) }),

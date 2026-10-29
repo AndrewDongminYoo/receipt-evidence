@@ -25,10 +25,7 @@ const REFERENCE_LABEL = /(order|reference|주문번호|승인번호)/i;
  * OCR also splits a thousands separator from its digits, so `1, 700` is
  * rejoined before parsing rather than read as `700`. */
 export function withoutDateOrTime(line: string): string {
-  return line
-    .replace(DATE_PATTERN_G, " ")
-    .replace(CLOCK_TIME, " ")
-    .replace(SPLIT_GROUPING, "$1,");
+  return line.replace(DATE_PATTERN_G, " ").replace(CLOCK_TIME, " ").replace(SPLIT_GROUPING, "$1,");
 }
 
 function minorUnits(amount: string): number | null {
@@ -84,9 +81,5 @@ export function parseAmountMinor(text: string, _currency: Currency): number | nu
 }
 
 export function canUseAsAmount(line: OcrEvidence): boolean {
-  return (
-    parseDate(line.text) === null &&
-    !REFERENCE_LABEL.test(line.text) &&
-    (amountOf(line.text) ?? 0) > 0
-  );
+  return parseDate(line.text) === null && !REFERENCE_LABEL.test(line.text) && (amountOf(line.text) ?? 0) > 0;
 }

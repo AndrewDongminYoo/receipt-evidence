@@ -42,7 +42,12 @@ export interface ModelClient {
 // (absent, not null) and the whole reply is dropped.
 export function toStrictSchema(node: unknown): unknown {
   if (typeof node !== "object" || node === null) return node;
-  const schema = node as { type?: string; items?: unknown; properties?: Record<string, unknown>; required?: string[] };
+  const schema = node as {
+    type?: string;
+    items?: unknown;
+    properties?: Record<string, unknown>;
+    required?: string[];
+  };
   if (schema.type === "array" && schema.items !== undefined) {
     return { ...schema, items: toStrictSchema(schema.items) };
   }
@@ -81,7 +86,10 @@ function extractOutputText(response: unknown): string {
     if (type !== "message" || !Array.isArray(content)) continue;
     for (const part of content) {
       if (typeof part !== "object" || part === null) continue;
-      const { type: partType, text } = part as { type?: unknown; text?: unknown };
+      const { type: partType, text } = part as {
+        type?: unknown;
+        text?: unknown;
+      };
       if (partType === "output_text" && typeof text === "string") return text;
     }
   }
@@ -113,13 +121,20 @@ function missingFieldsInstruction(missingFields: readonly string[]): string {
 export function buildInput(pages: readonly Page[], missingFields: readonly string[]): OpenAI.Responses.ResponseInput {
   const content: OpenAI.Responses.ResponseInputMessageContentList = [];
   for (const [pageIndex, page] of pages.entries()) {
-    content.push({ type: "input_text", text: `Page ${pageIndex}:\n${page.text}` });
+    content.push({
+      type: "input_text",
+      text: `Page ${pageIndex}:\n${page.text}`,
+    });
     if (page.imageDataUrl !== undefined) {
       // `image_url` takes "a fully qualified URL or base64 encoded image in a
       // data URL" (ResponseInputImage, openai@7.5.0 responses.d.ts:3289-3293),
       // which is why Page carries the whole data URL rather than bare base64.
       // `detail` is a required property on that interface, not an optional one.
-      content.push({ type: "input_image", detail: "auto", image_url: page.imageDataUrl });
+      content.push({
+        type: "input_image",
+        detail: "auto",
+        image_url: page.imageDataUrl,
+      });
     }
   }
   return [

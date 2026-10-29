@@ -27,9 +27,27 @@ const DIR = path.join(REPO_ROOT, "packages/contract/test/fixtures/receipts");
 const REFERENCE = new Date(2026, 6, 20);
 const manifest = JSON.parse(fs.readFileSync(path.join(DIR, "expected.json"), "utf8"));
 
-const derivedCounts = { merchant: 0, purchaseDate: 0, paidTotal: 0, currency: 0, reference: 0 };
-const matchCounts = { merchant: 0, purchaseDate: 0, paidTotal: 0, currency: 0, reference: 0 };
-const nonDerivableButValued = { merchant: [], purchaseDate: [], paidTotal: [], reference: [], items: [] };
+const derivedCounts = {
+  merchant: 0,
+  purchaseDate: 0,
+  paidTotal: 0,
+  currency: 0,
+  reference: 0,
+};
+const matchCounts = {
+  merchant: 0,
+  purchaseDate: 0,
+  paidTotal: 0,
+  currency: 0,
+  reference: 0,
+};
+const nonDerivableButValued = {
+  merchant: [],
+  purchaseDate: [],
+  paidTotal: [],
+  reference: [],
+  items: [],
+};
 let itemsReceiptCount = 0;
 
 function localDate(iso) {
@@ -48,7 +66,11 @@ for (const receipt of manifest.receipts) {
       matchCounts.merchant++;
     }
     if (derived.merchant.derivable === false) {
-      nonDerivableButValued.merchant.push({ id: receipt.id, value: parsed.merchant.value, evidence: parsed.merchant.evidence.text });
+      nonDerivableButValued.merchant.push({
+        id: receipt.id,
+        value: parsed.merchant.value,
+        evidence: parsed.merchant.evidence.text,
+      });
     }
   }
 
@@ -59,7 +81,11 @@ for (const receipt of manifest.receipts) {
       if (parsed.purchaseDate.value.getTime() === expect.getTime()) matchCounts.purchaseDate++;
     }
     if (derived.purchaseDate.derivable === false) {
-      nonDerivableButValued.purchaseDate.push({ id: receipt.id, value: isoDate(parsed.purchaseDate.value), evidence: parsed.purchaseDate.evidence.text });
+      nonDerivableButValued.purchaseDate.push({
+        id: receipt.id,
+        value: isoDate(parsed.purchaseDate.value),
+        evidence: parsed.purchaseDate.evidence.text,
+      });
     }
   }
 
@@ -69,7 +95,11 @@ for (const receipt of manifest.receipts) {
       matchCounts.paidTotal++;
     }
     if (derived.paidTotalMinor.derivable === false) {
-      nonDerivableButValued.paidTotal.push({ id: receipt.id, value: parsed.paidTotal.value, evidence: parsed.paidTotal.evidence.text });
+      nonDerivableButValued.paidTotal.push({
+        id: receipt.id,
+        value: parsed.paidTotal.value,
+        evidence: parsed.paidTotal.evidence.text,
+      });
     }
   }
 
@@ -83,7 +113,11 @@ for (const receipt of manifest.receipts) {
       matchCounts.reference++;
     }
     if (derived.reference.derivable === false) {
-      nonDerivableButValued.reference.push({ id: receipt.id, value: parsed.reference.value, evidence: parsed.reference.evidence.text });
+      nonDerivableButValued.reference.push({
+        id: receipt.id,
+        value: parsed.reference.value,
+        evidence: parsed.reference.evidence.text,
+      });
     }
   }
 
@@ -93,7 +127,11 @@ for (const receipt of manifest.receipts) {
     itemsReceiptCount++;
     nonDerivableButValued.items.push({
       id: receipt.id,
-      items: parsed.items.map((item) => ({ name: item.name, amountMinor: item.amountMinor, evidence: item.nameEvidence.text })),
+      items: parsed.items.map((item) => ({
+        name: item.name,
+        amountMinor: item.amountMinor,
+        evidence: item.nameEvidence.text,
+      })),
     });
   }
 }

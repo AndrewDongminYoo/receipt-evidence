@@ -5,7 +5,9 @@ import { ExtractionResponseSchema, ModelReplySchema, modelJsonSchema } from "../
 import type { ExtractionResponse } from "../src/response.ts";
 
 test("the schema requires evidence on every value", () => {
-  const withoutEvidence = { items: [{ name: "커피", quantity: 1, amountMinor: 4500 }] };
+  const withoutEvidence = {
+    items: [{ name: "커피", quantity: 1, amountMinor: 4500 }],
+  };
 
   assert.equal(ModelReplySchema.safeParse(withoutEvidence).success, false);
 });
@@ -33,12 +35,20 @@ test("an item needs BOTH its name's and its amount's evidence, not one shared ex
   // what keeps the old shape from silently satisfying the new schema.
   const oldShape = {
     items: [
-      { name: "커피", amountMinor: 4500, evidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+      {
+        name: "커피",
+        amountMinor: 4500,
+        evidence: { pageIndex: 0, excerpt: "커피 4,500" },
+      },
     ],
   };
   const nameOnly = {
     items: [
-      { name: "커피", amountMinor: 4500, nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" } },
+      {
+        name: "커피",
+        amountMinor: 4500,
+        nameEvidence: { pageIndex: 0, excerpt: "커피 4,500" },
+      },
     ],
   };
 
@@ -91,10 +101,19 @@ test("a reply carrying an invented field is rejected, not silently stripped", ()
 // --- ExtractionResponseSchema ------------------------------------------------
 
 function aResponse(): unknown {
-  const evidence = { pageIndex: 0, excerpt: "커피 4,500", box: { x: 1, y: 2, width: 3, height: 4 } };
+  const evidence = {
+    pageIndex: 0,
+    excerpt: "커피 4,500",
+    box: { x: 1, y: 2, width: 3, height: 4 },
+  };
   return {
     fields: {
-      merchant: { value: "GS25", source: "parser", evidence: { ...evidence, box: null }, verified: true },
+      merchant: {
+        value: "GS25",
+        source: "parser",
+        evidence: { ...evidence, box: null },
+        verified: true,
+      },
       currency: "KRW",
     },
     items: [
@@ -109,7 +128,12 @@ function aResponse(): unknown {
       },
     ],
     tenders: [],
-    arithmetic: { itemSumMinor: 4500, claimedTotalMinor: 4500, reconciledTenderMinor: null, agrees: true },
+    arithmetic: {
+      itemSumMinor: 4500,
+      claimedTotalMinor: 4500,
+      reconciledTenderMinor: null,
+      agrees: true,
+    },
     unverified: [],
     disagreements: [],
     modelReply: { accepted: true },
@@ -135,7 +159,10 @@ test("the response schema and ExtractionResponse describe the same shape", () =>
 test("the response schema rejects a body the renderer would crash on", () => {
   // The shape another service on the guessed port returns: JSON, 200, and
   // nothing the renderer can map over.
-  const notAnExtraction = { ...(aResponse() as Record<string, unknown>), items: { count: 1 } };
+  const notAnExtraction = {
+    ...(aResponse() as Record<string, unknown>),
+    items: { count: 1 },
+  };
 
   assert.equal(ExtractionResponseSchema.safeParse(notAnExtraction).success, false);
   assert.equal(ExtractionResponseSchema.safeParse({ status: "ok" }).success, false);
@@ -146,7 +173,10 @@ test("the response schema accepts, and strips, a field an older client does not 
   // Accepted is not the same as carried through — z.object() strips what it
   // does not declare, so an older client renders the parts it understands and
   // never sees the new field. Both halves are the contract.
-  const withNewField = { ...(aResponse() as Record<string, unknown>), futureField: 1 };
+  const withNewField = {
+    ...(aResponse() as Record<string, unknown>),
+    futureField: 1,
+  };
 
   const parsed = ExtractionResponseSchema.safeParse(withNewField);
 
@@ -159,7 +189,9 @@ test("the response schema rejects money that is not an integer minor unit", () =
   // integer, and ModelReplySchema enforces exactly that one level upstream. A
   // boundary that only asked "is a number" would let a mismatched server's
   // 4500.5 won past the guard the model's own reply could never pass.
-  const withFractionalItem = aResponse() as { items: { amountMinor: number; quantity?: number }[] };
+  const withFractionalItem = aResponse() as {
+    items: { amountMinor: number; quantity?: number }[];
+  };
   withFractionalItem.items[0].amountMinor = 4500.5;
 
   assert.equal(ExtractionResponseSchema.safeParse(withFractionalItem).success, false);
@@ -171,7 +203,9 @@ test("the response schema rejects money that is not an integer minor unit", () =
     assert.equal(ExtractionResponseSchema.safeParse(response).success, false, `quantity ${badQuantity}`);
   }
 
-  const withFractionalSum = aResponse() as { arithmetic: { itemSumMinor: number | null } };
+  const withFractionalSum = aResponse() as {
+    arithmetic: { itemSumMinor: number | null };
+  };
   withFractionalSum.arithmetic.itemSumMinor = 4500.5;
 
   assert.equal(ExtractionResponseSchema.safeParse(withFractionalSum).success, false);
@@ -183,7 +217,9 @@ test("the response schema rejects evidence no one could have read a value from",
   // verified: true field would have both clients present a fact with no
   // evidence behind it. verifyEvidence fails closed on it; so does this.
   for (const emptyish of ["", "   ", "\n\t"]) {
-    const response = aResponse() as { fields: { merchant?: { evidence: { excerpt: string } } } };
+    const response = aResponse() as {
+      fields: { merchant?: { evidence: { excerpt: string } } };
+    };
     (response.fields.merchant as { evidence: { excerpt: string } }).evidence.excerpt = emptyish;
 
     assert.equal(ExtractionResponseSchema.safeParse(response).success, false, JSON.stringify(emptyish));
@@ -205,7 +241,9 @@ test("the response schema rejects a purchase date that is not an ISO calendar da
 });
 
 test("the response schema rejects an empty merchant or item name", () => {
-  const emptyMerchant = aResponse() as { fields: { merchant?: { value: string } } };
+  const emptyMerchant = aResponse() as {
+    fields: { merchant?: { value: string } };
+  };
   (emptyMerchant.fields.merchant as { value: string }).value = "";
 
   assert.equal(ExtractionResponseSchema.safeParse(emptyMerchant).success, false);

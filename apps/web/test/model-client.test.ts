@@ -36,11 +36,7 @@ function assertStrictModeValid(original: JsonSchemaNode, transformed: JsonSchema
   assert.equal(transformed.additionalProperties, false, `${path}: additionalProperties must be false`);
   const originalKeys = Object.keys(original.properties).sort();
   const originalRequired = new Set(original.required ?? []);
-  assert.deepEqual(
-    Object.keys(transformed.properties ?? {}).sort(),
-    originalKeys,
-    `${path}: same property keys`,
-  );
+  assert.deepEqual(Object.keys(transformed.properties ?? {}).sort(), originalKeys, `${path}: same property keys`);
   assert.deepEqual(
     [...(transformed.required ?? [])].sort(),
     originalKeys,
@@ -78,7 +74,11 @@ function userParts(pages: readonly Page[]): { type: string; text?: string; image
   const user = input.find((message) => message.role === "user");
   assert.ok(user, "buildInput must emit a user message");
   assert.ok(Array.isArray(user.content), "user content must be a content-part list, not a joined string");
-  return user.content as { type: string; text?: string; image_url?: string | null }[];
+  return user.content as {
+    type: string;
+    text?: string;
+    image_url?: string | null;
+  }[];
 }
 
 const JPEG = "data:image/jpeg;base64,QUJD";
@@ -131,7 +131,10 @@ test("buildInput names the header fields the parser left blank, and never its va
   assert.match(instructions, /merchant, reference/, "the model is told which fields to answer for");
   assert.doesNotMatch(instructions, /purchaseDate|paidTotal/, "and not told to answer for ones the parser filled");
 
-  const none = buildInput([{ text: "TOTAL 12,900", lines: [] }], []) as { role: string; content: unknown }[];
+  const none = buildInput([{ text: "TOTAL 12,900", lines: [] }], []) as {
+    role: string;
+    content: unknown;
+  }[];
   assert.match(
     none
       .filter((message) => message.role === "system")

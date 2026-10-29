@@ -16,7 +16,10 @@
  * - anchorToLines returns OcrLine["frame"] | null
  */
 export function normalize(value: string): string {
-  return value.normalize("NFKC").replace(/[^\S\n]+/g, " ").trim();
+  return value
+    .normalize("NFKC")
+    .replace(/[^\S\n]+/g, " ")
+    .trim();
 }
 
 /**
@@ -69,7 +72,10 @@ export function findLineRuns(excerpt: string, lines: readonly string[]): { start
   for (let start = 0; start < normalised.length; start += 1) {
     const limit = Math.min(MAX_EVIDENCE_LINES, normalised.length - start);
     for (let length = 1; length <= limit; length += 1) {
-      const at = normalised.slice(start, start + length).join("\n").indexOf(needle);
+      const at = normalised
+        .slice(start, start + length)
+        .join("\n")
+        .indexOf(needle);
       if (at === -1) continue;
       // The match has to BEGIN in this run's first line. Otherwise it lies
       // wholly inside a run that starts later, and this one is that run with

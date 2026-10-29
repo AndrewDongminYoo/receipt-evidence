@@ -8,7 +8,14 @@ import { File } from "expo-file-system";
 import { scan, DEFAULT_OCR_FLOOR } from "react-native-receipt-scanner";
 import type { ReceiptImage } from "react-native-receipt-scanner";
 import { ExtractionResponseSchema } from "@receipt-evidence/contract/schema";
-import type { EvidenceRef, ExtractedField, ExtractedItem, ExtractionResponse, Frame, Page } from "@receipt-evidence/contract/response";
+import type {
+  EvidenceRef,
+  ExtractedField,
+  ExtractedItem,
+  ExtractionResponse,
+  Frame,
+  Page,
+} from "@receipt-evidence/contract/response";
 import { apiBaseUrl } from "./src/api.ts";
 import { clearsFloor } from "./src/capture.ts";
 import { EvidenceOverlay } from "./src/EvidenceOverlay.tsx";
@@ -19,16 +26,20 @@ import { EvidenceOverlay } from "./src/EvidenceOverlay.tsx";
 // `SourceCode.scriptURL` is where this bundle was loaded from — the one host
 // the running app has already proved it can reach. See src/api.ts for why
 // Constants.expoConfig.hostUri, the obvious choice, is empty in this app.
-const scriptUrl = (NativeModules["SourceCode"] as { getConstants?: () => { scriptURL?: string } } | undefined)
-  ?.getConstants?.()
-  ?.scriptURL;
+const scriptUrl = (
+  NativeModules["SourceCode"] as { getConstants?: () => { scriptURL?: string } } | undefined
+)?.getConstants?.()?.scriptURL;
 const API_URL = apiBaseUrl(process.env.EXPO_PUBLIC_API_URL, scriptUrl);
 
 type Status =
   | { kind: "idle" }
   | { kind: "working"; step: string }
   | { kind: "failed"; message: string }
-  | { kind: "done"; images: readonly ReceiptImage[]; result: ExtractionResponse };
+  | {
+      kind: "done";
+      images: readonly ReceiptImage[];
+      result: ExtractionResponse;
+    };
 
 /** Turns one capture into a request page. Text always; the JPEG only when
  * the text cannot carry the work — that decision, not the upload, is what
@@ -70,12 +81,14 @@ function boxesOf(result: ExtractionResponse, pageIndex: number, wanted: boolean)
             { evidence: item.amountEvidence, verified: item.verified },
           ],
     ),
-    ...result.tenders.map((tender) => ({ evidence: tender.evidence, verified: tender.verified })),
+    ...result.tenders.map((tender) => ({
+      evidence: tender.evidence,
+      verified: tender.verified,
+    })),
   ];
   return entries
     .filter(
-      (entry) =>
-        entry.evidence.pageIndex === pageIndex && entry.verified === wanted && entry.evidence.box !== null,
+      (entry) => entry.evidence.pageIndex === pageIndex && entry.verified === wanted && entry.evidence.box !== null,
     )
     .map((entry) => entry.evidence.box as Frame);
 }
@@ -103,7 +116,10 @@ export default function App() {
       });
       if (scanned.status === "cancelled") return setStatus({ kind: "idle" });
       if (scanned.images.length === 0) {
-        return setStatus({ kind: "failed", message: "the scanner returned no page" });
+        return setStatus({
+          kind: "failed",
+          message: "the scanner returned no page",
+        });
       }
 
       setStatus({ kind: "working", step: "extracting" });
@@ -147,9 +163,16 @@ export default function App() {
           message: `the server did not return an extraction${where === undefined || where === "" ? "" : ` (${where})`}`,
         });
       }
-      setStatus({ kind: "done", images: scanned.images, result: extraction.data });
+      setStatus({
+        kind: "done",
+        images: scanned.images,
+        result: extraction.data,
+      });
     } catch (error) {
-      setStatus({ kind: "failed", message: error instanceof Error ? error.message : String(error) });
+      setStatus({
+        kind: "failed",
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

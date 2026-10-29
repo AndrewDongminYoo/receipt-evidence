@@ -57,11 +57,17 @@ function parseLines(raw: string): { lines: OcrLine[]; error: string | null } {
     // JSON syntax error already is.
     const bad = parsed.findIndex((entry) => !isOcrLine(entry));
     if (bad !== -1) {
-      return { lines: [], error: `entry ${bad} is not { text, frame: {x,y,width,height} }` };
+      return {
+        lines: [],
+        error: `entry ${bad} is not { text, frame: {x,y,width,height} }`,
+      };
     }
     return { lines: parsed as OcrLine[], error: null };
   } catch (err) {
-    return { lines: [], error: err instanceof Error ? err.message : "invalid JSON" };
+    return {
+      lines: [],
+      error: err instanceof Error ? err.message : "invalid JSON",
+    };
   }
 }
 
@@ -132,7 +138,12 @@ function collectBoxes(result: ExtractionResponse): BoxEntry[] {
   const boxes: BoxEntry[] = [];
   const push = (path: string, field: ExtractedField<unknown> | undefined) => {
     if (field?.evidence.box) {
-      boxes.push({ path, pageIndex: field.evidence.pageIndex, box: field.evidence.box, verified: field.verified });
+      boxes.push({
+        path,
+        pageIndex: field.evidence.pageIndex,
+        box: field.evidence.box,
+        verified: field.verified,
+      });
     }
   };
   push("merchant", result.fields.merchant);
@@ -295,7 +306,9 @@ export default function Page() {
       const dataUrl = await readFileAsDataUrl(file);
       const { width, height } = await loadImage(dataUrl);
       if (selectionCounters.current.get(id) !== selection) return;
-      updatePage(id, { image: { dataUrl, naturalWidth: width, naturalHeight: height } });
+      updatePage(id, {
+        image: { dataUrl, naturalWidth: width, naturalHeight: height },
+      });
       setError(null);
     } catch (err) {
       if (selectionCounters.current.get(id) !== selection) return;
@@ -336,7 +349,10 @@ export default function Page() {
       const body: unknown = await response.json();
       if (requestRevision.current !== revision) return;
       if (!response.ok) {
-        const message = typeof body === "object" && body !== null && "error" in body ? String((body as { error: unknown }).error) : response.statusText;
+        const message =
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error: unknown }).error)
+            : response.statusText;
         setError(message);
         return;
       }
@@ -363,8 +379,8 @@ export default function Page() {
       <h1>receipt-evidence</h1>
       <p className="intro">
         Paste a receipt&apos;s OCR text (for example the contents of{" "}
-        <code>packages/contract/test/fixtures/receipts/kr_01.txt</code>) and see what the parser and the model
-        each contributed, and which of it was verified.
+        <code>packages/contract/test/fixtures/receipts/kr_01.txt</code>) and see what the parser and the model each
+        contributed, and which of it was verified.
       </p>
 
       <form onSubmit={(event) => void handleSubmit(event)}>
@@ -409,15 +425,15 @@ export default function Page() {
                 disabled={page.image === null}
                 onChange={(event) => updatePage(page.id, { sendImage: event.target.checked })}
               />
-              Also send this page&apos;s photo to the model — the image fallback, for text too poor to read. Off
-              by default: uploading it is the one thing here that sends your receipt&apos;s picture off this
-              machine, and the app does it only for a page below the OCR floor.
+              Also send this page&apos;s photo to the model — the image fallback, for text too poor to read. Off by
+              default: uploading it is the one thing here that sends your receipt&apos;s picture off this machine, and
+              the app does it only for a page below the OCR floor.
             </label>
 
             <label htmlFor={`ocr-lines-${page.id}`}>
-              OCR lines JSON (optional, advanced) — <code>{"[{ text, frame: {x,y,width,height} }]"}</code> in
-              the image&apos;s own pixel space. Without this, evidence boxes cannot be anchored: /api/extract
-              never runs OCR itself.
+              OCR lines JSON (optional, advanced) — <code>{"[{ text, frame: {x,y,width,height} }]"}</code> in the
+              image&apos;s own pixel space. Without this, evidence boxes cannot be anchored: /api/extract never runs OCR
+              itself.
             </label>
             <textarea
               id={`ocr-lines-${page.id}`}
@@ -450,8 +466,7 @@ export default function Page() {
         <div className="result">
           {result.modelReply.accepted === false && (
             <p className="rejection-banner">
-              Model reply rejected — items and any model-derived field below come from the parser alone, not the
-              model.
+              Model reply rejected — items and any model-derived field below come from the parser alone, not the model.
               <br />
               Reason: {result.modelReply.reason}
             </p>
@@ -468,7 +483,9 @@ export default function Page() {
               <div
                 key={page.id}
                 className="image-frame"
-                style={{ aspectRatio: `${image.naturalWidth} / ${image.naturalHeight}` }}
+                style={{
+                  aspectRatio: `${image.naturalWidth} / ${image.naturalHeight}`,
+                }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- data: URL, no remote loader needed */}
                 <img src={image.dataUrl} alt={`uploaded receipt page ${pageIndex}`} />
@@ -520,8 +537,8 @@ export default function Page() {
             <h2>Items ({result.items.length})</h2>
             {result.items.length === 0 && (
               <p className="hint">
-                No items. The pipeline asks the model for items and takes none from the parser — the parser does
-                derive them, but on this corpus it has never once derived a correct one (see the README table).
+                No items. The pipeline asks the model for items and takes none from the parser — the parser does derive
+                them, but on this corpus it has never once derived a correct one (see the README table).
               </p>
             )}
             {result.items.map((item, index) => (
@@ -542,14 +559,11 @@ export default function Page() {
           {result.disagreements.length > 0 && (
             <section className="disagreements">
               <h2>Disagreements ({result.disagreements.length})</h2>
-              <p className="hint">
-                The parser re-read the model&apos;s own cited excerpt and got a different number.
-              </p>
+              <p className="hint">The parser re-read the model&apos;s own cited excerpt and got a different number.</p>
               <ul>
                 {result.disagreements.map((d) => (
                   <li key={d.path}>
-                    <code>{d.path}</code>: model said {d.modelValue}, parser reads {d.parserValue} from the same
-                    excerpt
+                    <code>{d.path}</code>: model said {d.modelValue}, parser reads {d.parserValue} from the same excerpt
                   </li>
                 ))}
               </ul>

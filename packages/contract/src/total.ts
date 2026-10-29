@@ -24,7 +24,8 @@ import { isTenderPaymentLine } from "./tenders.ts";
 // this system's contract is that a value ships with evidence a reader can
 // check, and a barcode presented as a total is exactly what that exists to
 // prevent. Latin labels are left alone — OCR does not letter-space them.
-export const TOTAL_LABEL = /(^|\s)(total|grand total|(?:credit|debit)\s*card\s*payment|결\s*제\s*금\s*액|합\s*계)(\s|:|$)/i;
+export const TOTAL_LABEL =
+  /(^|\s)(total|grand total|(?:credit|debit)\s*card\s*payment|결\s*제\s*금\s*액|합\s*계)(\s|:|$)/i;
 const CARD_PAYMENT_TOTAL_LABEL = /(?:credit|debit)\s*card\s*payment|신용\s*카드\s*결\s*제\s*금\s*액/i;
 const CARD_PAYMENT_FAILURE_LABEL = /\b(declined|failed|voided|reversed)\b/i;
 const CARD_PAYMENT_NON_PAYMENT_LABEL = /\b(reference|authorization|approval|auth|balance|fee)\b|승인\s*번호/i;
@@ -34,7 +35,8 @@ const CARD_PAYMENT_NON_PAYMENT_LABEL = /\b(reference|authorization|approval|auth
 // Exported: currency.ts reuses this to exclude a fare/tax row from marker
 // detection, same reuse reason as TOTAL_LABEL above.
 // Letter-spacing tolerated for the same reason as TOTAL_LABEL above.
-export const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\b|소\s*계|할\s*인|세\s*금|부\s*가\s*세/i;
+export const OTHER_AMOUNT_LABEL =
+  /\b(discount|saved|savings?|tax|vat|subtotal)\b|소\s*계|할\s*인|세\s*금|부\s*가\s*세/i;
 // A row naming a count is the paid total only when it also carries money:
 // `TOTAL 2 ITEMS $24.95` is a total, `TOTAL NUMBER OF ITEMS SOLD - 10` is a tally.
 const COUNT_LABEL = /\b(count|number|items?|sold|qty|quantity)\b|수량|개수/i;
@@ -89,29 +91,40 @@ function isLabelRow(line: string, currency: Currency): boolean {
  * Merely containing TOTAL or DISCOUNT (as in a merchant name) does not
  * claim the following value. */
 function endsWithLabel(text: string, pattern: RegExp): boolean {
-  const label = text.replace(/:\s*$/, "").trim()
+  const label = text
+    .replace(/:\s*$/, "")
+    .trim()
     .replace(/\s*\((?:USD|KRW)\)$/i, "")
-    .replace(/\s+DUE$/i, "").trim();
+    .replace(/\s+DUE$/i, "")
+    .trim();
   const match = pattern.exec(label);
   if (match === null || match.index + match[0].length !== label.length) return false;
   // English merchant names can end in a financial word too (BOB'S DISCOUNT).
   // Only known figure qualifiers may precede it. Korean compound labels
   // retain their existing prefix handling, e.g. 총수량 and 노마진 소계.
   const prefix = label.slice(0, match.index).trim();
-  return !/[A-Za-z]/.test(prefix) ||
+  return (
+    !/[A-Za-z]/.test(prefix) ||
     (pattern === OTHER_AMOUNT_LABEL && /^tax$/i.test(match[0]) && /^(sales|state|local|city)$/i.test(prefix)) ||
-    (pattern === COUNT_LABEL && /^(total|item)$/i.test(prefix));
+    (pattern === COUNT_LABEL && /^(total|item)$/i.test(prefix))
+  );
 }
 
 /** Another figure in the same label run distinguishes a stacked total
  * column from a merchant name above a priced item, such as TOTAL / Fuel. */
 function hasOtherFigureLabel(lines: OcrEvidence[], labelIndex: number, currency: Currency): boolean {
   for (const step of [-1, 1]) {
-    for (let index = labelIndex + step; index >= 0 && index < lines.length &&
-      isLabelRow(lines[index].text, currency); index += step) {
+    for (
+      let index = labelIndex + step;
+      index >= 0 && index < lines.length && isLabelRow(lines[index].text, currency);
+      index += step
+    ) {
       const text = lines[index].text;
-      if (isTenderPaymentLine(text) || [TOTAL_LABEL, OTHER_AMOUNT_LABEL, COUNT_LABEL]
-        .some((pattern) => endsWithLabel(text, pattern))) return true;
+      if (
+        isTenderPaymentLine(text) ||
+        [TOTAL_LABEL, OTHER_AMOUNT_LABEL, COUNT_LABEL].some((pattern) => endsWithLabel(text, pattern))
+      )
+        return true;
     }
   }
   return false;
@@ -123,11 +136,7 @@ function hasOtherFigureLabel(lines: OcrEvidence[], labelIndex: number, currency:
  * `0.53`, `6.03`, `6.03` yields the labels first and the amounts after, so
  * the nth label belongs to the nth amount. Taking the first amount below the
  * label would report the subtotal as the paid total. */
-function columnAlignedValue(
-  lines: OcrEvidence[],
-  labelIndex: number,
-  currency: Currency,
-): OcrEvidence | null {
+function columnAlignedValue(lines: OcrEvidence[], labelIndex: number, currency: Currency): OcrEvidence | null {
   let start = labelIndex;
   while (start > 0 && isLabelRow(lines[start - 1].text, currency)) {
     start--;
@@ -170,11 +179,7 @@ function columnAlignedValue(
  * OCR flattens a two-column total into consecutive rows and sometimes emits
  * a timestamp row in between, so rows carrying no amount are skipped within
  * a short window before the first row that does is tested. */
-function splitTotalValueAfter(
-  lines: OcrEvidence[],
-  labelIndex: number,
-  currency: Currency,
-): OcrEvidence | null {
+function splitTotalValueAfter(lines: OcrEvidence[], labelIndex: number, currency: Currency): OcrEvidence | null {
   const aligned = columnAlignedValue(lines, labelIndex, currency);
   if (aligned !== null) return aligned;
   // A failed stacked-column pairing is not a single-label receipt. The first
@@ -184,11 +189,7 @@ function splitTotalValueAfter(
   // when another figure participates in the same text run.
   if (hasOtherFigureLabel(lines, labelIndex, currency)) return null;
   let skipped = 0;
-  for (
-    let index = labelIndex + 1;
-    index < lines.length && skipped <= SPLIT_TOTAL_LOOKAHEAD;
-    index++
-  ) {
+  for (let index = labelIndex + 1; index < lines.length && skipped <= SPLIT_TOTAL_LOOKAHEAD; index++) {
     const line = lines[index];
     if (parseAmountMinor(line.text, currency) === null) {
       // A line carrying no amount that NAMES a figure claims the value after
@@ -237,9 +238,13 @@ function namesAnotherFigure(line: string): boolean {
  * an item can be a merchant name and retains the existing fallback behavior.
  * Shared with analyze so its largest-amount fallback cannot undo refusal. */
 export function hasUnresolvedTotalColumn(lines: OcrEvidence[], currency: Currency): boolean {
-  return lines.some((line, index) => endsWithLabel(line.text, TOTAL_LABEL) &&
-    !namesAnotherFigure(line.text) && !CARD_PAYMENT_TOTAL_LABEL.test(line.text) &&
-    hasOtherFigureLabel(lines, index, currency));
+  return lines.some(
+    (line, index) =>
+      endsWithLabel(line.text, TOTAL_LABEL) &&
+      !namesAnotherFigure(line.text) &&
+      !CARD_PAYMENT_TOTAL_LABEL.test(line.text) &&
+      hasOtherFigureLabel(lines, index, currency),
+  );
 }
 
 /** The last resort for a receipt with no total label: a row that is a

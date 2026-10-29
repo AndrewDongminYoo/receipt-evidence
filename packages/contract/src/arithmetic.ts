@@ -14,14 +14,29 @@ export function checkArithmetic(
 ): ArithmeticCheck {
   const itemSumMinor = items.length > 0 ? items.reduce((sum, item) => sum + item.amountMinor, 0) : null;
   if (itemSumMinor === null || claimedTotalMinor === null) {
-    return { itemSumMinor, claimedTotalMinor, reconciledTenderMinor: null, agrees: null };
+    return {
+      itemSumMinor,
+      claimedTotalMinor,
+      reconciledTenderMinor: null,
+      agrees: null,
+    };
   }
 
   if (itemSumMinor === claimedTotalMinor) {
-    return { itemSumMinor, claimedTotalMinor, reconciledTenderMinor: null, agrees: true };
+    return {
+      itemSumMinor,
+      claimedTotalMinor,
+      reconciledTenderMinor: null,
+      agrees: true,
+    };
   }
 
   const tenderSum = additionalTenderMinor.reduce((sum, amountMinor) => sum + amountMinor, 0);
   const reconciledTenderMinor = tenderSum > 0 && itemSumMinor === claimedTotalMinor + tenderSum ? tenderSum : null;
-  return { itemSumMinor, claimedTotalMinor, reconciledTenderMinor, agrees: reconciledTenderMinor !== null };
+  return {
+    itemSumMinor,
+    claimedTotalMinor,
+    reconciledTenderMinor,
+    agrees: reconciledTenderMinor !== null,
+  };
 }

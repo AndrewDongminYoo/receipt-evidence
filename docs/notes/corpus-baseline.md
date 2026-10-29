@@ -7,14 +7,14 @@ The two numbers can differ, and where they differ is the interesting part.
 
 ## Per-field table
 
-| Field           | Parser derived a value (of 12) | Matches manifest ground truth (of 12) |
-| --------------- | ------------------------------- | -------------------------------------- |
-| merchant        | 12                               | 7                                       |
-| purchaseDate    | 11                               | 11                                      |
-| paidTotalMinor  | 12                               | 7                                       |
-| currency        | 12                               | 12                                      |
-| reference       | 1                                | 1                                       |
-| items           | 3 receipts return ≥1 item        | n/a — manifest never gives item ground truth in `ocrDerived` |
+| Field          | Parser derived a value (of 12) | Matches manifest ground truth (of 12)                        |
+| -------------- | ------------------------------ | ------------------------------------------------------------ |
+| merchant       | 12                             | 7                                                            |
+| purchaseDate   | 11                             | 11                                                           |
+| paidTotalMinor | 12                             | 7                                                            |
+| currency       | 12                             | 12                                                           |
+| reference      | 1                              | 1                                                            |
+| items          | 3 receipts return ≥1 item      | n/a — manifest never gives item ground truth in `ocrDerived` |
 
 These "derived" and "match" numbers confirm the spec/README claims of currency 12/12, purchaseDate 11/12, merchant 7/12, paidTotalMinor 7/12, reference 1/12 exactly, on both axes.
 **Items does not confirm the claimed 0/12.**
@@ -41,7 +41,7 @@ Currency is currently 12/12 correct on this corpus, so narrowing `isPricedItem` 
 **Ruling: keep the faithful port.** `packages/contract/test/corpus.test.ts` now pins the exact wrong output for these three receipts (KR-02 → item `"NO:"` at 34,567; KR-05 → `"X118/232"` at 812; KR-06 → `"HE500*"` at 100) as real, passing assertions, not `todo`s. A known-wrong, faithfully-ported behavior is honest to assert; the pin exists so a future narrowing of the shared predicate shows up as a failing test here rather than a silent behavior change.
 
 `items.ts`'s own header comment previously claimed "The corpus proves this path derives nothing on all 12 real receipts" — false for 3 of the 12.
-Corrected to state the measured truth: no *correct* item on any of the 12, and a spurious one on 3, citing this file.
+Corrected to state the measured truth: no _correct_ item on any of the 12, and a spurious one on 3, citing this file.
 
 ## Merchant: KR-04's negative-amount blind spot (fixed)
 

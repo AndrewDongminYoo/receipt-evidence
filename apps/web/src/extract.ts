@@ -5,7 +5,12 @@
 import { analyze } from "@receipt-evidence/contract/analyze";
 import { evidenceLines } from "@receipt-evidence/contract/evidence";
 import type { ParsedField, ParsedReceipt } from "@receipt-evidence/contract/analyze";
-import { verifyEvidence, excerptContainsAmount, excerptContainsText, evidenceSpan } from "@receipt-evidence/contract/guards";
+import {
+  verifyEvidence,
+  excerptContainsAmount,
+  excerptContainsText,
+  evidenceSpan,
+} from "@receipt-evidence/contract/guards";
 import { parseDate } from "@receipt-evidence/contract/dates";
 import { checkArithmetic } from "@receipt-evidence/contract/arithmetic";
 import { anchorToLines } from "@receipt-evidence/contract/anchor";
@@ -109,7 +114,12 @@ function candidateFor<P, T>(
     };
   }
   if (model === undefined) return undefined;
-  return { value: model.value, source: "model", pageIndex: model.evidence.pageIndex, excerpt: model.evidence.excerpt };
+  return {
+    value: model.value,
+    source: "model",
+    pageIndex: model.evidence.pageIndex,
+    excerpt: model.evidence.excerpt,
+  };
 }
 
 /**
@@ -141,7 +151,12 @@ function resolve<T>(
   const { value, source, pageIndex, excerpt } = candidate;
   const verified = verifyEvidence(excerpt, pageText(pages, pageIndex)) && statesValue(excerpt, value);
   if (!verified) unverified.push(path);
-  return { value, source, evidence: { pageIndex, excerpt, box: box(pages, pageIndex, excerpt) }, verified };
+  return {
+    value,
+    source,
+    evidence: { pageIndex, excerpt, box: box(pages, pageIndex, excerpt) },
+    verified,
+  };
 }
 
 /** A date's guard cannot be a substring test: the model reports ISO
@@ -223,8 +238,14 @@ function buildItem(
     quantity: item.quantity,
     amountMinor: item.amountMinor,
     source: "model",
-    nameEvidence: { ...nameEvidence, box: box(pages, nameEvidence.pageIndex, nameEvidence.excerpt) },
-    amountEvidence: { ...amountEvidence, box: box(pages, amountEvidence.pageIndex, amountEvidence.excerpt) },
+    nameEvidence: {
+      ...nameEvidence,
+      box: box(pages, nameEvidence.pageIndex, nameEvidence.excerpt),
+    },
+    amountEvidence: {
+      ...amountEvidence,
+      box: box(pages, amountEvidence.pageIndex, amountEvidence.excerpt),
+    },
     verified,
   };
 }
@@ -270,9 +291,13 @@ function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unve
   for (const [index, item] of items.entries()) {
     if (!item.verified) continue;
     const { nameEvidence, amountEvidence } = item;
-    const split = !(nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt);
+    const split = !(
+      nameEvidence.pageIndex === amountEvidence.pageIndex && nameEvidence.excerpt === amountEvidence.excerpt
+    );
     const nameSpan = evidenceSpan(nameEvidence.excerpt, pageText(pages, nameEvidence.pageIndex));
-    const amountSpan = split ? evidenceSpan(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex)) : nameSpan;
+    const amountSpan = split
+      ? evidenceSpan(amountEvidence.excerpt, pageText(pages, amountEvidence.pageIndex))
+      : nameSpan;
     if (nameSpan === null || amountSpan === null) {
       // Ambiguity fails CLOSED for a split item: the span is the binding, so
       // an excerpt the page cannot place (a repeated printed amount, say)
@@ -288,8 +313,16 @@ function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unve
     entries.push({
       index,
       split,
-      name: { page: nameEvidence.pageIndex, start: nameSpan.start, end: nameSpan.start + nameSpan.length },
-      amount: { page: amountEvidence.pageIndex, start: amountSpan.start, end: amountSpan.start + amountSpan.length },
+      name: {
+        page: nameEvidence.pageIndex,
+        start: nameSpan.start,
+        end: nameSpan.start + nameSpan.length,
+      },
+      amount: {
+        page: amountEvidence.pageIndex,
+        start: amountSpan.start,
+        end: amountSpan.start + amountSpan.length,
+      },
     });
   }
   const compare = (a: Span, b: Span) => Math.sign(a.page - b.page) || Math.sign(a.start - b.start);
@@ -328,7 +361,16 @@ function demoteCrossedItems(items: ExtractedItem[], pages: readonly Page[], unve
 }
 
 function emptyReceipt(): ParsedReceipt {
-  return { merchant: null, purchaseDate: null, paidTotal: null, currency: "KRW", reference: null, items: [], tenders: [], lines: [] };
+  return {
+    merchant: null,
+    purchaseDate: null,
+    paidTotal: null,
+    currency: "KRW",
+    reference: null,
+    items: [],
+    tenders: [],
+    lines: [],
+  };
 }
 
 export async function extract(
@@ -346,7 +388,8 @@ export async function extract(
   // SAN FRANCISCO CA", "SANDWICH 12.99 / TAX 1.05 / TOTAL $14.04"]` returned
   // `paidTotal 123, verified: true` from `123 MAIN ST`, and currency KRW.
   // The mobile app scans with maxPages: 3, so this is its ordinary path.
-  const parsed = pages.length === 0 ? emptyReceipt() : analyze(pages.map((page) => page.text).join("\n"), referenceDate);
+  const parsed =
+    pages.length === 0 ? emptyReceipt() : analyze(pages.map((page) => page.text).join("\n"), referenceDate);
 
   // Only the field NAMES the parser left blank — never its values. See
   // ModelClient: the prompt has always said "the fields the parser left
@@ -375,7 +418,7 @@ export async function extract(
   const unverified: string[] = [];
   const disagreements: Disagreement[] = [];
 
-  const same = <T,>(value: T): T => value;
+  const same = <T>(value: T): T => value;
   const merchant = resolve(
     "fields.merchant",
     candidateFor(parsed.merchant, same, reply.merchant, pages),
@@ -395,7 +438,13 @@ export async function extract(
   // Separate from the guard, and runs whatever the guard decided: a value can
   // be verified and still disagree. MODEL values only — see noteDisagreement.
   if (paidTotalCandidate?.source === "model") {
-    noteDisagreement("fields.paidTotal", paidTotalCandidate.excerpt, paidTotalCandidate.value, referenceDate, disagreements);
+    noteDisagreement(
+      "fields.paidTotal",
+      paidTotalCandidate.excerpt,
+      paidTotalCandidate.value,
+      referenceDate,
+      disagreements,
+    );
   }
   const reference = resolve(
     "fields.reference",
@@ -405,7 +454,9 @@ export async function extract(
     unverified,
   );
 
-  const items = reply.items.map((item, index) => buildItem(item, index, pages, referenceDate, unverified, disagreements));
+  const items = reply.items.map((item, index) =>
+    buildItem(item, index, pages, referenceDate, unverified, disagreements),
+  );
   demoteCrossedItems(items, pages, unverified);
   const tenders = parsed.tenders
     .map((tender, index) =>
@@ -431,7 +482,13 @@ export async function extract(
   );
 
   return {
-    fields: { merchant, purchaseDate, paidTotal, reference, currency: parsed.currency },
+    fields: {
+      merchant,
+      purchaseDate,
+      paidTotal,
+      reference,
+      currency: parsed.currency,
+    },
     items,
     tenders,
     arithmetic,

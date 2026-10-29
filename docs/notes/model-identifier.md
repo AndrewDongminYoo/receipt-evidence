@@ -24,7 +24,7 @@ states that `strict: true` JSON Schema mode requires **every** property to be li
 `required`, with optional fields expressed as nullable unions (`type: [T, "null"]`)
 rather than omitted from `required`. `packages/contract/src/schema.ts`'s
 `ModelReplySchema` instead uses zod's `.optional()` for `merchant`, `purchaseDate`,
-`paidTotal`, and `reference` — a field the model cannot support is meant to be *absent*,
+`paidTotal`, and `reference` — a field the model cannot support is meant to be _absent_,
 not present-as-null, and that shape is unchanged by this task (see the Task 14 report
 for why: the file is shared and reviewed, so a shape change goes back to the plan owner,
 not into this diff). `apps/web/src/model-client.ts` works around the mismatch at the

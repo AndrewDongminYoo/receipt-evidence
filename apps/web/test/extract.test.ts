@@ -63,8 +63,18 @@ test("a model item backed by real evidence is verified and anchored", async () =
   const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
 
   assert.equal(result.items[0].verified, true);
-  assert.deepEqual(result.items[0].nameEvidence.box, { x: 0, y: 20, width: 10, height: 10 });
-  assert.deepEqual(result.items[0].amountEvidence.box, { x: 0, y: 20, width: 10, height: 10 });
+  assert.deepEqual(result.items[0].nameEvidence.box, {
+    x: 0,
+    y: 20,
+    width: 10,
+    height: 10,
+  });
+  assert.deepEqual(result.items[0].amountEvidence.box, {
+    x: 0,
+    y: 20,
+    width: 10,
+    height: 10,
+  });
   assert.equal(result.arithmetic.agrees, true);
 });
 
@@ -94,8 +104,7 @@ test("a fabricated model item survives as unverified, never as fact", async () =
 
 test("an explicit Korean total takes precedence over settlement contributions", async () => {
   const page = {
-    text:
-      "GS25\n말차마카다쿠키 2,400\n행운한입쑥찰떡 4,000\n5개) 아카페 2,900\n합계 9,300\n상품권결제금액: 5,000\n신용카드 결제금액: 4,300원\n",
+    text: "GS25\n말차마카다쿠키 2,400\n행운한입쑥찰떡 4,000\n5개) 아카페 2,900\n합계 9,300\n상품권결제금액: 5,000\n신용카드 결제금액: 4,300원\n",
     lines: [],
   };
   const client = {
@@ -140,8 +149,14 @@ test("an English USD tender is evidenced before it reconciles a card payment", a
     text: "COFFEE SHOP\nCoffee $12.99\nCredit Card Payment: $7.99\nGift Certificate Payment 1234 $5.00\n",
     lines: [
       { text: "Coffee $12.99", frame: { x: 0, y: 0, width: 10, height: 10 } },
-      { text: "Credit Card Payment: $7.99", frame: { x: 0, y: 20, width: 10, height: 10 } },
-      { text: "Gift Certificate Payment 1234 $5.00", frame: { x: 0, y: 40, width: 10, height: 10 } },
+      {
+        text: "Credit Card Payment: $7.99",
+        frame: { x: 0, y: 20, width: 10, height: 10 },
+      },
+      {
+        text: "Gift Certificate Payment 1234 $5.00",
+        frame: { x: 0, y: 40, width: 10, height: 10 },
+      },
     ],
   };
   const client = {
@@ -245,7 +260,11 @@ test("a hash-prefixed tender identifier cannot reconcile a card payment", async 
 });
 
 test("the parser's own fields are marked as coming from the parser", async () => {
-  const client = { async complete() { return { items: [] }; } };
+  const client = {
+    async complete() {
+      return { items: [] };
+    },
+  };
 
   const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
 
@@ -328,8 +347,14 @@ test("a fabricated string or date is marked unverified, whatever real line it qu
   // `verified: true` with an empty `unverified` list.
   const client = {
     complete: async () => ({
-      purchaseDate: { value: "1999-01-01", evidence: { pageIndex: 0, excerpt: "BLUE BOTTLE" } },
-      reference: { value: "TOTALLY-MADE-UP-9999", evidence: { pageIndex: 0, excerpt: "TOTAL  12.99" } },
+      purchaseDate: {
+        value: "1999-01-01",
+        evidence: { pageIndex: 0, excerpt: "BLUE BOTTLE" },
+      },
+      reference: {
+        value: "TOTALLY-MADE-UP-9999",
+        evidence: { pageIndex: 0, excerpt: "TOTAL  12.99" },
+      },
       items: [],
     }),
   };
@@ -466,7 +491,10 @@ test("a multi-page scan is one document, so a header page cannot supply the tota
   const result = await extract(
     {
       pages: [
-        { text: "BLUE BOTTLE COFFEE\n123 MAIN ST\nSAN FRANCISCO CA\n", lines: [] },
+        {
+          text: "BLUE BOTTLE COFFEE\n123 MAIN ST\nSAN FRANCISCO CA\n",
+          lines: [],
+        },
         { text: "SANDWICH  12.99\nTAX  1.05\nTOTAL  $14.04\n", lines: [] },
       ],
     },
@@ -520,8 +548,18 @@ test("a column-flattened item verifies through split evidence, one box per part"
   assert.equal(result.items[1]?.verified, true);
   assert.deepEqual(result.unverified, []);
   // Each part points at its own place on the paper.
-  assert.deepEqual(result.items[0]?.nameEvidence.box, { x: 0, y: 10, width: 10, height: 10 });
-  assert.deepEqual(result.items[0]?.amountEvidence.box, { x: 0, y: 60, width: 10, height: 10 });
+  assert.deepEqual(result.items[0]?.nameEvidence.box, {
+    x: 0,
+    y: 10,
+    width: 10,
+    height: 10,
+  });
+  assert.deepEqual(result.items[0]?.amountEvidence.box, {
+    x: 0,
+    y: 60,
+    width: 10,
+    height: 10,
+  });
   assert.equal(result.arithmetic.agrees, true);
 });
 
@@ -753,7 +791,10 @@ test("a split item whose excerpt the page cannot place unambiguously is demoted"
   // printed amount was a bypass. For a split item the position is the
   // binding, so ambiguity fails closed; the model's remedy is to quote
   // enough adjacent context to be unambiguous.
-  const page = { text: "곤약젤리복숭아\n최강록명란\n1,900\n1,700\n1,900\n", lines: [] };
+  const page = {
+    text: "곤약젤리복숭아\n최강록명란\n1,900\n1,700\n1,900\n",
+    lines: [],
+  };
   const client = {
     complete: async () => ({
       items: [
@@ -975,7 +1016,17 @@ test("a model reply's every branch satisfies ExtractionResponseSchema", async ()
 // runtime coverage at all — the type assertion in schema.test.ts cannot see it,
 // because `z.int()` and `.nonnegative()` both infer as plain `number`. The
 // corpus is where the real shapes are.
-const CORPUS_DIR = path.join(import.meta.dirname, "..", "..", "..", "packages", "contract", "test", "fixtures", "receipts");
+const CORPUS_DIR = path.join(
+  import.meta.dirname,
+  "..",
+  "..",
+  "..",
+  "packages",
+  "contract",
+  "test",
+  "fixtures",
+  "receipts",
+);
 
 test("the whole corpus, parsed end to end, satisfies ExtractionResponseSchema", async () => {
   const client = {

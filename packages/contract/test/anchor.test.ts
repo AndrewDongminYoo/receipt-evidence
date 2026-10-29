@@ -8,11 +8,21 @@ const LINES = [
 ];
 
 test("anchorToLines finds the box of the quoted line", () => {
-  assert.deepEqual(anchorToLines("합계 14,800", LINES), { x: 10, y: 40, width: 200, height: 20 });
+  assert.deepEqual(anchorToLines("합계 14,800", LINES), {
+    x: 10,
+    y: 40,
+    width: 200,
+    height: 20,
+  });
 });
 
 test("anchorToLines matches after whitespace and NFKC normalisation", () => {
-  assert.deepEqual(anchorToLines("합계  14,800 ", LINES), { x: 10, y: 40, width: 200, height: 20 });
+  assert.deepEqual(anchorToLines("합계  14,800 ", LINES), {
+    x: 10,
+    y: 40,
+    width: 200,
+    height: 20,
+  });
 });
 
 test("anchorToLines returns null when no line carries the excerpt", () => {
@@ -42,7 +52,10 @@ test("a multi-line excerpt is boxed by the rectangle enclosing every line it spa
   // The Korean item shape: name, barcode and price on three lines. The box has
   // to cover all three, or the reader is pointed at part of the evidence.
   const lines = [
-    { text: "하리보)푸르티부시젤리100", frame: { x: 20, y: 100, width: 300, height: 20 } },
+    {
+      text: "하리보)푸르티부시젤리100",
+      frame: { x: 20, y: 100, width: 300, height: 20 },
+    },
     { text: "4001686375754", frame: { x: 10, y: 130, width: 200, height: 20 } },
     { text: "2,500", frame: { x: 240, y: 130, width: 80, height: 24 } },
   ];

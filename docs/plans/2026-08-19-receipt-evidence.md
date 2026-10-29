@@ -133,10 +133,7 @@ export interface Money {
 export function isMoney(value: unknown): value is Money {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Partial<Money>;
-  return (
-    Number.isInteger(candidate.amountMinor) &&
-    (candidate.currency === "KRW" || candidate.currency === "USD")
-  );
+  return Number.isInteger(candidate.amountMinor) && (candidate.currency === "KRW" || candidate.currency === "USD");
 }
 ```
 
@@ -271,17 +268,12 @@ test("parseDate ignores a short date embedded in a longer identifier", () => {
 });
 
 test("parseDate skips a calendar-invalid match and takes the valid one beside it", () => {
-  assert.deepEqual(
-    parseDate("2026-02-31 승인 2026-07-01"),
-    new Date(2026, 6, 1),
-  );
+  assert.deepEqual(parseDate("2026-02-31 승인 2026-07-01"), new Date(2026, 6, 1));
 });
 
 test("selectDate skips expiry labels and future dates", () => {
   const reference = new Date(2026, 6, 20);
-  const lines = evidenceLines(
-    "유효기간 2027-01-01\n2028-05-05\n2026-07-02 20:20:50\n",
-  );
+  const lines = evidenceLines("유효기간 2027-01-01\n2028-05-05\n2026-07-02 20:20:50\n");
 
   assert.equal(selectDate(lines, reference)?.text, "2026-07-02 20:20:50");
 });
@@ -308,10 +300,7 @@ const EXPIRY_LABEL = /(expir|\bexp\b|유효기간)/i;
 /** Rejects a date the calendar does not have — 2026-02-31 round-trips wrong. */
 function calendarDate(year: number, month: number, day: number): Date | null {
   const date = new Date(year, month - 1, day);
-  const valid =
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day;
+  const valid = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
   return valid ? date : null;
 }
 
@@ -333,18 +322,13 @@ export function parseDate(text: string): Date | null {
   return null;
 }
 
-export function selectDate(
-  lines: OcrEvidence[],
-  referenceDate: Date,
-): OcrEvidence | null {
+export function selectDate(lines: OcrEvidence[], referenceDate: Date): OcrEvidence | null {
   return (
     lines.find((line) => {
       const date = parseDate(line.text);
       // A purchase already happened, so a later date belongs to an expiry, a
       // return window, or a misread year rather than to this receipt.
-      return (
-        date !== null && !EXPIRY_LABEL.test(line.text) && date <= referenceDate
-      );
+      return date !== null && !EXPIRY_LABEL.test(line.text) && date <= referenceDate;
     }) ?? null
   );
 }
@@ -422,8 +406,7 @@ Port the constants verbatim, then the two functions. Keep the Dart comments — 
 import type { Currency } from "./types.ts";
 import type { OcrEvidence } from "./evidence.ts";
 
-const TRAILING_AMOUNT =
-  /\s+(?:(?:KRW|USD)\s*)?[₩$]?\s*(\d[\d,]*(?:\.\d{2})?)원?\s*$/i;
+const TRAILING_AMOUNT = /\s+(?:(?:KRW|USD)\s*)?[₩$]?\s*(\d[\d,]*(?:\.\d{2})?)원?\s*$/i;
 const AMOUNT_PATTERN = /\d[\d,]*(?:\.\d{2})?/;
 // Clock times ride the same line as dates on receipts; a colon never appears
 // in an amount, so stripping `14:30:22` keeps it out of amount inference.
@@ -521,8 +504,7 @@ const TOTAL_LABEL = /(^|\s)(total|grand total|결제금액|합계)(\s|:|$)/i;
 // A row naming a different money figure is never the paid total. The English
 // labels match as whole words, so `TAXI FARE $12.99` is a fare rather than a
 // tax row; the Korean ones match anywhere, because `할인금액` is one word.
-const OTHER_AMOUNT_LABEL =
-  /\b(discount|saved|savings?|tax|vat|subtotal)\b|소계|할인|세금|부가세/i;
+const OTHER_AMOUNT_LABEL = /\b(discount|saved|savings?|tax|vat|subtotal)\b|소계|할인|세금|부가세/i;
 // A row naming a count is the paid total only when it also carries money:
 // `TOTAL 2 ITEMS $24.95` is a total, `TOTAL NUMBER OF ITEMS SOLD - 10` is a tally.
 const COUNT_LABEL = /\b(count|number|items?|sold|qty|quantity)\b|수량|개수/i;
@@ -580,19 +562,13 @@ test("inferCurrency reads a fare row as USD — TAXI is not a tax row", () => {
   // `\btax\b` matches as a whole word, so TAXI never triggers the tax label.
   const lines = evidenceLines("City Cabs\nTAXI FARE $12.99\n");
 
-  assert.equal(
-    inferCurrency("City Cabs\nTAXI FARE $12.99", lines, null),
-    "USD",
-  );
+  assert.equal(inferCurrency("City Cabs\nTAXI FARE $12.99", lines, null), "USD");
 });
 
 test("inferCurrency keeps a dotted date out of cents detection", () => {
   const lines = evidenceLines("GS25\n2026.07.02 20:20:50\n17,100\n");
 
-  assert.equal(
-    inferCurrency("GS25\n2026.07.02 20:20:50\n17,100", lines, lines[2]),
-    "KRW",
-  );
+  assert.equal(inferCurrency("GS25\n2026.07.02 20:20:50\n17,100", lines, lines[2]), "KRW");
 });
 ```
 
@@ -668,9 +644,7 @@ test("extractItems reads priced items with their evidence lines", () => {
 });
 
 test("extractItems excludes settlement and column-header rows", () => {
-  const lines = evidenceLines(
-    "OIL CHANGE 39.99\nCHANGE DUE 7.01\nQTY 1.00\n거스름 500\n",
-  );
+  const lines = evidenceLines("OIL CHANGE 39.99\nCHANGE DUE 7.01\nQTY 1.00\n거스름 500\n");
 
   assert.deepEqual(
     extractItems(lines, "USD").map((item) => item.name),
@@ -778,10 +752,7 @@ test("analyze fills every field from a clean receipt", () => {
 });
 
 test("analyze leaves a field null rather than guessing it", () => {
-  const parsed = analyze(
-    "Corner Shop\nPortable SSD\n89,000\nCard 1234\n",
-    REFERENCE,
-  );
+  const parsed = analyze("Corner Shop\nPortable SSD\n89,000\nCard 1234\n", REFERENCE);
 
   assert.equal(parsed.reference, null);
   assert.equal(parsed.paidTotal?.value, 89000);
@@ -852,9 +823,7 @@ import { analyze } from "../src/analyze.ts";
 
 const DIR = path.join(import.meta.dirname, "fixtures", "receipts");
 const REFERENCE = new Date(2026, 6, 20);
-const manifest = JSON.parse(
-  fs.readFileSync(path.join(DIR, "expected.json"), "utf8"),
-);
+const manifest = JSON.parse(fs.readFileSync(path.join(DIR, "expected.json"), "utf8"));
 
 for (const receipt of manifest.receipts) {
   test(`${receipt.id} extracts only OCR-supported facts`, () => {
@@ -863,30 +832,14 @@ for (const receipt of manifest.receipts) {
     const derived = receipt.ocrDerived;
 
     if (derived.paidTotalMinor.derivable === false) {
-      assert.equal(
-        parsed.paidTotal,
-        null,
-        `${receipt.id} must not invent a total`,
-      );
+      assert.equal(parsed.paidTotal, null, `${receipt.id} must not invent a total`);
     } else {
-      assert.equal(
-        parsed.paidTotal?.value,
-        derived.paidTotalMinor.value,
-        receipt.id,
-      );
-      assert.equal(
-        parsed.paidTotal?.evidence.text,
-        derived.paidTotalMinor.evidence,
-        receipt.id,
-      );
+      assert.equal(parsed.paidTotal?.value, derived.paidTotalMinor.value, receipt.id);
+      assert.equal(parsed.paidTotal?.evidence.text, derived.paidTotalMinor.evidence, receipt.id);
     }
 
     if (derived.merchant.derivable === false) {
-      assert.equal(
-        parsed.merchant,
-        null,
-        `${receipt.id} must not invent a merchant`,
-      );
+      assert.equal(parsed.merchant, null, `${receipt.id} must not invent a merchant`);
     } else {
       assert.equal(parsed.merchant?.value, derived.merchant.value, receipt.id);
     }
@@ -983,8 +936,7 @@ test("a fabricated model value cannot pass the guard", () => {
   const fabricated = { value: 148000, excerpt: "합계 148,000" };
 
   assert.equal(
-    verifyEvidence(fabricated.excerpt, page) &&
-      excerptContainsValue(fabricated.excerpt, fabricated.value),
+    verifyEvidence(fabricated.excerpt, page) && excerptContainsValue(fabricated.excerpt, fabricated.value),
     false,
   );
 });
@@ -1036,10 +988,7 @@ import test from "node:test";
 import { checkArithmetic } from "../src/arithmetic.ts";
 
 test("checkArithmetic agrees when the items sum to the total", () => {
-  const result = checkArithmetic(
-    [{ amountMinor: 13000 }, { amountMinor: 1700 }, { amountMinor: 100 }],
-    14800,
-  );
+  const result = checkArithmetic([{ amountMinor: 13000 }, { amountMinor: 1700 }, { amountMinor: 100 }], 14800);
 
   assert.deepEqual(result, {
     itemSumMinor: 14800,
@@ -1084,14 +1033,8 @@ export function checkArithmetic(
   items: readonly { amountMinor: number }[],
   claimedTotalMinor: number | null,
 ): ArithmeticCheck {
-  const itemSumMinor =
-    items.length > 0
-      ? items.reduce((sum, item) => sum + item.amountMinor, 0)
-      : null;
-  const agrees =
-    itemSumMinor === null || claimedTotalMinor === null
-      ? null
-      : itemSumMinor === claimedTotalMinor;
+  const itemSumMinor = items.length > 0 ? items.reduce((sum, item) => sum + item.amountMinor, 0) : null;
+  const agrees = itemSumMinor === null || claimedTotalMinor === null ? null : itemSumMinor === claimedTotalMinor;
   return { itemSumMinor, claimedTotalMinor, agrees };
 }
 ```
@@ -1126,10 +1069,7 @@ export interface OcrLine {
   text: string;
   frame: { x: number; y: number; width: number; height: number };
 }
-export function anchorToLines(
-  excerpt: string,
-  lines: readonly OcrLine[],
-): OcrLine["frame"] | null;
+export function anchorToLines(excerpt: string, lines: readonly OcrLine[]): OcrLine["frame"] | null;
 ```
 
 `OcrLine` mirrors the shape `react-native-receipt-scanner` returns, so the app can pass its `ocrLines` straight through.
@@ -1263,10 +1203,7 @@ test("the JSON schema handed to the model matches the zod definition", () => {
   const jsonSchema = modelJsonSchema();
 
   assert.equal(jsonSchema.type, "object");
-  assert.ok(
-    jsonSchema.properties.items,
-    "items must be present in the JSON schema",
-  );
+  assert.ok(jsonSchema.properties.items, "items must be present in the JSON schema");
   assert.equal(jsonSchema.additionalProperties, false);
 });
 ```
@@ -1344,11 +1281,7 @@ test("a model item backed by real evidence is verified and anchored", async () =
     },
   };
 
-  const result = await extract(
-    { pages: [PAGE] },
-    client,
-    new Date(2026, 6, 20),
-  );
+  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
 
   assert.equal(result.items[0].verified, true);
   assert.deepEqual(result.items[0].evidence.box, {
@@ -1376,11 +1309,7 @@ test("a fabricated model item survives as unverified, never as fact", async () =
     },
   };
 
-  const result = await extract(
-    { pages: [PAGE] },
-    client,
-    new Date(2026, 6, 20),
-  );
+  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
 
   assert.equal(result.items[0].verified, false);
   assert.deepEqual(result.unverified, ["items[0]"]);
@@ -1394,11 +1323,7 @@ test("the parser's own fields are marked as coming from the parser", async () =>
     },
   };
 
-  const result = await extract(
-    { pages: [PAGE] },
-    client,
-    new Date(2026, 6, 20),
-  );
+  const result = await extract({ pages: [PAGE] }, client, new Date(2026, 6, 20));
 
   assert.equal(result.fields.paidTotal?.source, "parser");
   assert.equal(result.fields.paidTotal?.verified, true);

@@ -23,7 +23,9 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!isRequestBody(body)) {
     return Response.json(
-      { error: "expected { pages: [{ text, lines: [{ text, frame: {x,y,width,height} }] }] }" },
+      {
+        error: "expected { pages: [{ text, lines: [{ text, frame: {x,y,width,height} }] }] }",
+      },
       { status: 400 },
     );
   }
@@ -61,7 +63,7 @@ export async function POST(request: Request): Promise<Response> {
     },
   };
   try {
-      // Padded by a day — see extractionReferenceDate for why.
+    // Padded by a day — see extractionReferenceDate for why.
     const referenceDate = extractionReferenceDate(new Date());
     const result = await extract({ pages: body.pages }, guarded, referenceDate);
     return Response.json(result);

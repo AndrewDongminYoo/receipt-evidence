@@ -93,18 +93,22 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
   const total = selectTotal(lines, PROVISIONAL_CURRENCY);
 
   const referenceEvidence =
-    lines.find((line) => REFERENCE_LABEL.test(line.text) && parseReference(line.text) !== null) ??
-    null;
+    lines.find((line) => REFERENCE_LABEL.test(line.text) && parseReference(line.text) !== null) ?? null;
   const reference: ParsedField<string> | null =
     referenceEvidence === null
       ? null
-      : { value: parseReference(referenceEvidence.text) as string, evidence: referenceEvidence };
+      : {
+          value: parseReference(referenceEvidence.text) as string,
+          evidence: referenceEvidence,
+        };
 
   const paidTotal: ParsedField<number> | null =
     total === null
-      // A rejected total column is unknown, not permission to publish the
-      // largest unrelated number. Preserve other existing fallback cases.
-      ? (hasUnresolvedTotalColumn(lines, PROVISIONAL_CURRENCY) ? null : largestAmount(lines))
+      ? // A rejected total column is unknown, not permission to publish the
+        // largest unrelated number. Preserve other existing fallback cases.
+        hasUnresolvedTotalColumn(lines, PROVISIONAL_CURRENCY)
+        ? null
+        : largestAmount(lines)
       : { value: total.amountMinor, evidence: total.evidence };
 
   const currency = inferCurrency(rawText, lines, total?.evidence ?? null);
@@ -131,13 +135,20 @@ export function analyze(rawText: string, referenceDate: Date): ParsedReceipt {
   // currency.ts — measured 12/12 correct on the corpus) but let KR-04's
   // "-1,167" line through here as a merchant name. The sign is stripped
   // locally instead of widening isAmountOnlyRow's own definition.
-  const isSignedAmountOnlyRow = (text: string): boolean =>
-    isAmountOnlyRow(text.replace(/^[+-]\s*/, ""));
+  const isSignedAmountOnlyRow = (text: string): boolean => isAmountOnlyRow(text.replace(/^[+-]\s*/, ""));
   const merchantEvidence =
-    lines.find((line) => parseDate(line.text) === null && !isSignedAmountOnlyRow(line.text)) ??
-    null;
+    lines.find((line) => parseDate(line.text) === null && !isSignedAmountOnlyRow(line.text)) ?? null;
   const merchant: ParsedField<string> | null =
     merchantEvidence === null ? null : { value: merchantEvidence.text, evidence: merchantEvidence };
 
-  return { merchant, purchaseDate, paidTotal, currency, reference, items, tenders, lines };
+  return {
+    merchant,
+    purchaseDate,
+    paidTotal,
+    currency,
+    reference,
+    items,
+    tenders,
+    lines,
+  };
 }

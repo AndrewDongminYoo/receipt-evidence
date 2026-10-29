@@ -134,13 +134,24 @@ test("a small amount immediately after a lone total label is still a total", () 
 });
 
 test("merchant names containing financial words do not claim the total column", () => {
-  for (const merchant of ["TOTAL WINE & MORE", "DISCOUNT STORE", "TAX SHOP", "BOB'S DISCOUNT", "BOB'S TAX", "SHOP TOTAL"]) {
+  for (const merchant of [
+    "TOTAL WINE & MORE",
+    "DISCOUNT STORE",
+    "TAX SHOP",
+    "BOB'S DISCOUNT",
+    "BOB'S TAX",
+    "SHOP TOTAL",
+  ]) {
     const lines = evidenceLines(`${merchant}\nTOTAL\n$12.00`);
 
-    assert.deepEqual(selectTotal(lines, "USD"), {
-      amountMinor: 1200,
-      evidence: { lineIndex: 2, text: "$12.00" },
-    }, merchant);
+    assert.deepEqual(
+      selectTotal(lines, "USD"),
+      {
+        amountMinor: 1200,
+        evidence: { lineIndex: 2, text: "$12.00" },
+      },
+      merchant,
+    );
   }
 });
 
@@ -157,10 +168,14 @@ test("a merchant name ending in TOTAL does not suppress a standalone amount afte
   for (const merchant of ["TOTAL", "SHOP TOTAL"]) {
     const lines = evidenceLines(`${merchant}\nFuel $50.00\n$50.00`);
 
-    assert.deepEqual(selectTotal(lines, "USD"), {
-      amountMinor: 5000,
-      evidence: { lineIndex: 2, text: "$50.00" },
-    }, merchant);
+    assert.deepEqual(
+      selectTotal(lines, "USD"),
+      {
+        amountMinor: 5000,
+        evidence: { lineIndex: 2, text: "$50.00" },
+      },
+      merchant,
+    );
   }
 });
 
@@ -183,10 +198,14 @@ test("a complete column keeps labels outside the recognized payment vocabulary",
   for (const label of ["SHIPPING:", "SERVICE CHARGE"]) {
     const lines = evidenceLines(`SUBTOTAL:\n${label}\nTAX:\nTOTAL:\n5.50\n2.00\n0.53\n8.03`);
 
-    assert.deepEqual(selectTotal(lines, "USD"), {
-      amountMinor: 803,
-      evidence: { lineIndex: 7, text: "8.03" },
-    }, label);
+    assert.deepEqual(
+      selectTotal(lines, "USD"),
+      {
+        amountMinor: 803,
+        evidence: { lineIndex: 7, text: "8.03" },
+      },
+      label,
+    );
   }
 });
 
@@ -229,11 +248,7 @@ test("selectTotal reads a Korean label whose characters are letter-spaced", () =
   const lines = evidenceLines("하리보)푸르티부시젤리100\n4001686375754  1  2,500\n부 가 세  227\n합 계  #2,500\n");
 
   assert.equal(selectTotal(lines, "KRW")?.evidence.text, "합 계  #2,500");
-  assert.notEqual(
-    selectTotal(lines, "KRW")?.evidence.text,
-    "4001686375754  1  2,500",
-    "never the barcode row",
-  );
+  assert.notEqual(selectTotal(lines, "KRW")?.evidence.text, "4001686375754  1  2,500", "never the barcode row");
 });
 
 test("a letter-spaced VAT row is still excluded from the total", () => {

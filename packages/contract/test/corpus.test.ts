@@ -35,7 +35,10 @@ function localDate(isoDate: string): Date {
 // test instead of passing silently. See docs/notes/corpus-baseline.md.
 const WRONG_MERCHANTS: Record<string, { value: string; evidence: string }> = {
   "KR-01": { value: "ELEUE", evidence: "ELEUE" },
-  "KR-03": { value: "0|05 9 : (12)3456-7890", evidence: "0|05 9 : (12)3456-7890" },
+  "KR-03": {
+    value: "0|05 9 : (12)3456-7890",
+    evidence: "0|05 9 : (12)3456-7890",
+  },
   "KR-04": { value: "I21E", evidence: "I21E" },
   "KR-06": { value: "ЛЮТ9: 123-45-67890", evidence: "ЛЮТ9: 123-45-67890" },
   "EN-05": { value: "not saleps", evidence: "not saleps" },

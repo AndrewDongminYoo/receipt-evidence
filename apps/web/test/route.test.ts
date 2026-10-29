@@ -34,13 +34,17 @@ const VALID_PAGE = {
 test("a malformed body is a bad request, not an unhandled crash", async () => {
   const response = await POST(post("{not json at all"));
   assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: "request body is not valid JSON" });
+  assert.deepEqual(await response.json(), {
+    error: "request body is not valid JSON",
+  });
 });
 
 test("an empty page list is rejected rather than sent to the model", async () => {
   const response = await POST(post(JSON.stringify({ pages: [] })));
   assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: "no pages to extract from" });
+  assert.deepEqual(await response.json(), {
+    error: "no pages to extract from",
+  });
 });
 
 test("isRequestBody rejects a page shape that would crash the parser", () => {
@@ -53,7 +57,9 @@ test("isRequestBody rejects a page shape that would crash the parser", () => {
   assert.equal(isRequestBody({ pages: [{ text: "x" }] }), false, "no lines array");
   assert.equal(isRequestBody({ pages: [{ text: "x", lines: [1, 2, 3] }] }), false, "lines are not OCR lines");
   assert.equal(
-    isRequestBody({ pages: [{ text: "x", lines: [{ text: "x", frame: { x: 0, y: 0, width: 1 } }] }] }),
+    isRequestBody({
+      pages: [{ text: "x", lines: [{ text: "x", frame: { x: 0, y: 0, width: 1 } }] }],
+    }),
     false,
     "a frame missing a dimension",
   );
@@ -61,12 +67,16 @@ test("isRequestBody rejects a page shape that would crash the parser", () => {
   // The value is forwarded verbatim into the model request's `image_url`, so
   // an arbitrary string would let a caller aim that field wherever they liked.
   assert.equal(
-    isRequestBody({ pages: [{ ...VALID_PAGE, imageDataUrl: "https://example.com/pixel.png" }] }),
+    isRequestBody({
+      pages: [{ ...VALID_PAGE, imageDataUrl: "https://example.com/pixel.png" }],
+    }),
     false,
     "a remote URL is not an inline image",
   );
   assert.equal(
-    isRequestBody({ pages: [{ ...VALID_PAGE, imageDataUrl: "data:text/html;base64,PHNjcmlwdD4=" }] }),
+    isRequestBody({
+      pages: [{ ...VALID_PAGE, imageDataUrl: "data:text/html;base64,PHNjcmlwdD4=" }],
+    }),
     false,
     "a data URL that is not an image",
   );
@@ -77,8 +87,17 @@ test("isRequestBody accepts the requests the two clients actually send", () => {
   // above would still pass. The demo page sends the first shape; the mobile
   // app sends the second when a page falls below the OCR floor.
   assert.equal(isRequestBody({ pages: [VALID_PAGE] }), true);
-  assert.equal(isRequestBody({ pages: [{ ...VALID_PAGE, imageDataUrl: "data:image/jpeg;base64,QUJD" }] }), true);
-  assert.equal(isRequestBody({ pages: [{ text: "", lines: [] }] }), true, "an empty page is a caller's problem, not malformed");
+  assert.equal(
+    isRequestBody({
+      pages: [{ ...VALID_PAGE, imageDataUrl: "data:image/jpeg;base64,QUJD" }],
+    }),
+    true,
+  );
+  assert.equal(
+    isRequestBody({ pages: [{ text: "", lines: [] }] }),
+    true,
+    "an empty page is a caller's problem, not malformed",
+  );
   assert.equal(isRequestBody({ pages: [VALID_PAGE, VALID_PAGE] }), true, "a multi-page scan");
 });
 
