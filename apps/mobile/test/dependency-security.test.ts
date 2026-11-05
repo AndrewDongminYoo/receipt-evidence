@@ -7,10 +7,12 @@ import test from "node:test";
 
 const mobile = createRequire(new URL("../package.json", import.meta.url));
 const expo = createRequire(mobile.resolve("expo/package.json"));
+/** Resolve each parent's own graph so hoisting cannot mask a vulnerable dependency. */
 const consumer = (name: string) => createRequire(expo.resolve(`${name}/package.json`));
 const cli = consumer("@expo/cli");
 const root = new URL("../../../", import.meta.url);
 
+/** Give file-consuming Expo helpers a disposable project without prebuilding this app. */
 async function fixture(t: test.TestContext, files: Record<string, string>) {
   const directory = await mkdtemp(join(tmpdir(), "receipt-dependencies-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -22,7 +24,7 @@ async function fixture(t: test.TestContext, files: Record<string, string>) {
   return directory;
 }
 
-// A scanner must see the app graph, rather than pnpm's boot-only document.
+/** Reject file formats that hide the application graph behind pnpm bootstrap data. */
 function readGraph(source: string) {
   const documents = cli("yaml").parseAllDocuments(source);
   assert.equal(documents.length, 1, "dependency scanners need one YAML document");
@@ -31,6 +33,10 @@ function readGraph(source: string) {
   assert.ok(graph.importers?.["apps/mobile"]?.dependencies?.expo, "mobile dependencies missing");
   assert.ok(graph.packages && graph.snapshots, "resolved package graph missing");
   return graph as {
+    importers: Record<
+      string,
+      Partial<Record<"dependencies" | "devDependencies" | "optionalDependencies", Record<string, { version: string }>>>
+    >;
     packages: Record<string, unknown>;
     snapshots: Record<string, { dependencies?: Record<string, string> }>;
   };
@@ -46,8 +52,8 @@ test("the scanner reader rejects an env-only lockfile", () => {
   );
 });
 
-test("the graph fixes matchers and limits Zod 3 to the accepted CLI exception", async () => {
-  const graph = readGraph(await readFile(new URL("pnpm-lock.yaml", root), "utf8"));
+/** Enforce patched matchers and the explicitly accepted CLI-only legacy Zod boundary. */
+function assertGraphSecurity(graph: ReturnType<typeof readGraph>) {
   for (const key of Object.keys(graph.packages)) {
     if (key === "zod@3.25.76") continue;
     const match = /^(zod|glob|minimatch)@(\d+)\.(\d+)\.(\d+)$/.exec(key);
@@ -67,7 +73,32 @@ test("the graph fixes matchers and limits Zod 3 to the accepted CLI exception", 
       assert.match(parent, /^@expo\/cli@57\.0\.32\(/, "only the accepted CLI may consume Zod 3");
     }
   }
+  for (const [name, importer] of Object.entries(graph.importers)) {
+    for (const section of ["dependencies", "devDependencies", "optionalDependencies"] as const) {
+      for (const [dependency, { version }] of Object.entries(importer[section] ?? {})) {
+        const legacyZod = (dependency === "zod" && /^3(?:\.|$)/.test(version)) || /^zod@3(?:\.|$)/.test(version);
+        assert.equal(legacyZod, false, `workspace importers must not consume Zod 3: ${name}.${section}.${dependency}`);
+      }
+    }
+  }
+}
+
+test("the graph fixes matchers and limits Zod 3 to the accepted CLI exception", async () => {
+  assertGraphSecurity(readGraph(await readFile(new URL("pnpm-lock.yaml", root), "utf8")));
 });
+
+for (const section of ["dependencies", "devDependencies", "optionalDependencies"] as const) {
+  for (const alias of [false, true]) {
+    test(`the graph rejects a workspace ${section} ${alias ? "alias to" : "direct dependency on"} Zod 3`, async () => {
+      const graph = readGraph(await readFile(new URL("pnpm-lock.yaml", root), "utf8"));
+      graph.importers["apps/mobile"][section] = {
+        ...graph.importers["apps/mobile"][section],
+        [alias ? "legacy-validator" : "zod"]: { version: alias ? "zod@3.25.76" : "3.25.76" },
+      };
+      assert.throws(() => assertGraphSecurity(graph), /workspace importers must not consume Zod 3/);
+    });
+  }
+}
 
 test("Expo resolves patched matchers and the accepted CLI Zod 3 version", () => {
   for (const name of ["@expo/cli", "@expo/config", "@expo/config-plugins", "@expo/metro-config", "@expo/fingerprint"]) {
