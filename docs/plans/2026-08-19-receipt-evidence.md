@@ -1428,7 +1428,7 @@ Expo Go cannot load this module. Record that in the README along with `npx expo 
 
 - [ ] **Step 4: Device pass**
 
-Run on a real iPhone: camera path and gallery path, one receipt each. A simulator cannot exercise VisionKit's document scanner. Announce the install before running it — the device is the operator's daily phone.
+Run on a real iPhone: camera path and gallery path, one receipt each. A simulator cannot exercise VisionKit's document scanner. Announce the install before running it — the device is my daily phone.
 
 - [ ] **Step 5: Commit**
 
