@@ -43,7 +43,7 @@ That one shipped here, and is now pinned by a test.
 
 ## Quick start
 
-Requires Node 24+ and pnpm 11.
+Requires Node 24+ and pnpm 12.16.1.
 
 ```bash
 pnpm install
