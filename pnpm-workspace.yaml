@@ -9,15 +9,11 @@ pmOnFail: ignore
 # Security overrides target exact SDK 57 parents or individual affected lines.
 # Bare package names would cross unrelated consumers' compatibility boundaries.
 overrides:
-  # SDK 57's latest parents still request vulnerable prior major lines.
-  # Consumer regressions cover config/native discovery, Metro, template rename,
-  # fingerprint matching, and CLI plugin/MCP schemas before crossing these majors.
-  "@expo/cli@57.0.32>glob": 14.0.2 # GHSA-3g3m-2fjr-6pw4
-  "@expo/config@57.0.10>glob": 14.0.2 # GHSA-3g3m-2fjr-6pw4
-  "@expo/config-plugins@57.0.11>glob": 14.0.2 # GHSA-3g3m-2fjr-6pw4
-  "@expo/fingerprint@0.20.14>glob": 14.0.2 # GHSA-3g3m-2fjr-6pw4
-  "@expo/fingerprint@0.20.14>minimatch": 11.0.1 # GHSA-g3hv-75wg-m249
-  "@expo/metro-config@57.0.13>glob": 14.0.2 # GHSA-3g3m-2fjr-6pw4
+  # The other SDK 57 parents now request patched matchers themselves.
+  # Fingerprint still needs overrides; its consumer regression covers ignore
+  # matching and directory pruning across these major-version boundaries.
+  "@expo/fingerprint@0.20.15>glob": 14.0.4 # GHSA-3g3m-2fjr-6pw4
+  "@expo/fingerprint@0.20.15>minimatch": 11.0.5 # GHSA-g3hv-75wg-m249
   "@xmldom/xmldom@0.8": ^0.8.15 # GHSA-6gmq-8vp8-gcm6
   "@xmldom/xmldom@0.9": ^0.9.12 # GHSA-6gmq-8vp8-gcm6
   # uuid: no patch exists inside the 7.x line (fixed only from 11.1.1). Forced up

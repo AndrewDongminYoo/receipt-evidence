@@ -11,6 +11,7 @@ const expo = createRequire(mobile.resolve("expo/package.json"));
 const consumer = (name: string) => createRequire(expo.resolve(`${name}/package.json`));
 const cli = consumer("@expo/cli");
 const root = new URL("../../../", import.meta.url);
+const contract = createRequire(new URL("packages/contract/package.json", root));
 
 /** Give file-consuming Expo helpers a disposable project without prebuilding this app. */
 async function fixture(t: test.TestContext, files: Record<string, string>) {
@@ -52,10 +53,9 @@ test("the scanner reader rejects an env-only lockfile", () => {
   );
 });
 
-/** Enforce patched matchers and the explicitly accepted CLI-only legacy Zod boundary. */
+/** Enforce patched matchers and Zod throughout the installed workspace graph. */
 function assertGraphSecurity(graph: ReturnType<typeof readGraph>) {
   for (const key of Object.keys(graph.packages)) {
-    if (key === "zod@3.25.76") continue;
     const match = /^(zod|glob|minimatch)@(\d+)\.(\d+)\.(\d+)$/.exec(key);
     if (!match) continue;
     const [, name, major, minor, patch] = match;
@@ -68,11 +68,6 @@ function assertGraphSecurity(graph: ReturnType<typeof readGraph>) {
       `${key} is below the advisory's patched line`,
     );
   }
-  for (const [parent, snapshot] of Object.entries(graph.snapshots)) {
-    if (snapshot.dependencies?.zod === "3.25.76") {
-      assert.match(parent, /^@expo\/cli@57\.0\.32\(/, "only the accepted CLI may consume Zod 3");
-    }
-  }
   for (const [name, importer] of Object.entries(graph.importers)) {
     for (const section of ["dependencies", "devDependencies", "optionalDependencies"] as const) {
       for (const [dependency, { version }] of Object.entries(importer[section] ?? {})) {
@@ -83,9 +78,19 @@ function assertGraphSecurity(graph: ReturnType<typeof readGraph>) {
   }
 }
 
-test("the graph fixes matchers and limits Zod 3 to the accepted CLI exception", async () => {
+test("the graph fixes matchers and contains no legacy Zod", async () => {
   assertGraphSecurity(readGraph(await readFile(new URL("pnpm-lock.yaml", root), "utf8")));
 });
+
+for (const dependency of ["glob@13.0.7", "minimatch@10.2.6", "zod@3.25.76"]) {
+  test(`the graph rejects ${dependency}`, async () => {
+    const graph = readGraph(await readFile(new URL("pnpm-lock.yaml", root), "utf8"));
+    graph.packages[dependency] = {};
+    assert.throws(() => assertGraphSecurity(graph), {
+      message: `${dependency} is below the advisory's patched line`,
+    });
+  });
+}
 
 for (const section of ["dependencies", "devDependencies", "optionalDependencies"] as const) {
   for (const alias of [false, true]) {
@@ -100,18 +105,18 @@ for (const section of ["dependencies", "devDependencies", "optionalDependencies"
   }
 }
 
-test("Expo resolves patched matchers and the accepted CLI Zod 3 version", () => {
+test("Expo resolves patched matchers and the contract retains patched Zod", () => {
   for (const name of ["@expo/cli", "@expo/config", "@expo/config-plugins", "@expo/metro-config", "@expo/fingerprint"]) {
     const loader = consumer(name);
-    assert.equal(loader("glob/package.json").version, "14.0.2", `${name} glob resolution`);
+    const [globMajor, globMinor, globPatch] = loader("glob/package.json").version.split(".").map(Number);
+    assert.ok(globMajor === 14 && (globMinor > 0 || globPatch >= 2), `${name} needs glob >=14.0.2 within major 14`);
     const glob = createRequire(loader.resolve("glob/package.json"));
     const [major, minor, patch] = glob("minimatch/package.json").version.split(".").map(Number);
     assert.ok(major === 11 && (minor > 0 || patch >= 1), "glob needs minimatch >=11.0.1 within major 11");
   }
-  assert.equal(cli("zod/package.json").version, "3.25.76");
-  const contract = createRequire(new URL("packages/contract/package.json", root));
   assert.equal(contract("zod/package.json").version, "4.6.6");
-  assert.equal(consumer("@expo/fingerprint")("minimatch/package.json").version, "11.0.1");
+  const [major, minor, patch] = consumer("@expo/fingerprint")("minimatch/package.json").version.split(".").map(Number);
+  assert.ok(major === 11 && (minor > 0 || patch >= 1), "fingerprint needs minimatch >=11.0.1 within major 11");
 });
 
 test("Expo config and plugins still discover native project files", async (t) => {
@@ -237,12 +242,21 @@ const plugin = {
 };
 
 test("CLI plugin schemas keep validation issues and consumer error formatting", () => {
-  const { PluginSchema, DevToolsPluginOutputSchema } = cli("./build/src/start/server/DevToolsPlugin.schema.js");
-  assert.equal(PluginSchema.safeParse(plugin).success, true);
-  const invalid = PluginSchema.safeParse({ ...plugin, packageName: "" });
-  assert.equal(invalid.success, false);
-  assert.deepEqual(invalid.error.issues[0].path, ["packageName"]);
-  const { DevToolsPlugin } = cli("./build/src/start/server/DevToolsPlugin.js");
+  const { PluginSchema, DevToolsPluginOutputSchema } = cli(
+    "./build/src/start/server/devtools/DevToolsPlugin.schema.js",
+  );
+  const { validate, ValidationError } = cli("@expo/schema-utils");
+  assert.doesNotThrow(() => validate(PluginSchema, plugin));
+  assert.throws(
+    () => validate(PluginSchema, { ...plugin, packageName: "" }),
+    (error: unknown) =>
+      error instanceof Error &&
+      error instanceof ValidationError &&
+      "errors" in error &&
+      Array.isArray(error.errors) &&
+      error.errors.some((issue: { path: string }) => issue.path === ".packageName"),
+  );
+  const { DevToolsPlugin } = cli("./build/src/start/server/devtools/DevToolsPlugin.js");
   assert.throws(
     () => new DevToolsPlugin({ ...plugin, packageName: "" }, tmpdir()),
     /Invalid plugin configuration:.*\n/s,
@@ -252,14 +266,13 @@ test("CLI plugin schemas keep validation issues and consumer error formatting", 
     { type: "audio", url: "https://example.invalid/audio" },
     { type: "image", url: "https://example.invalid/image", text: "caption" },
   ];
-  assert.deepEqual(DevToolsPluginOutputSchema.parse(outputs), outputs);
-  const result = DevToolsPluginOutputSchema.safeParse([{ type: "image", url: "invalid" }]);
-  assert.equal(result.success, false);
-  assert.ok(result.error.issues.map((issue: { message: string }) => issue.message).join(", ").length > 0);
+  assert.doesNotThrow(() => validate(DevToolsPluginOutputSchema, outputs));
+  assert.throws(() => validate(DevToolsPluginOutputSchema, [{ type: "image", url: "invalid" }]), ValidationError);
 });
 
-test("MCP registration receives the real strict command schema without starting a server", async () => {
-  const { addMcpCapabilities } = cli("./build/src/start/server/MCPDevToolsPluginCLIExtensions.js");
+test("MCP registration uses the supplied Zod and preserves serialized command parameters", async () => {
+  const { addMcpCapabilities } = cli("./build/src/start/server/mcp/MCPDevToolsPluginCLIExtensions.js");
+  const { z } = contract("zod");
   let registrations = 0;
   await addMcpCapabilities(
     {
@@ -269,21 +282,21 @@ test("MCP registration receives the real strict command schema without starting 
       ) {
         registrations++;
         assert.equal(name, "fixture-plugin");
-        // expo-mcp's tunnel wraps this raw shape with Zod 3 before its
-        // zod-to-json-schema serializer reads typeName/innerType. This fake
-        // registration checks that boundary; it does not start the tunnel.
-        const tunnelSchema = cli("zod/v3").z.object(options.inputSchema);
-        const parameters = tunnelSchema.shape.parameters;
-        assert.equal(parameters._def.typeName, "ZodObject", "tunnel serializer needs a Zod 3 object");
-        assert.equal(parameters.shape.command._def.typeName, "ZodEnum");
-        assert.deepEqual(parameters.shape.command._def.values, ["inspect"]);
+        // The CLI now receives its schema implementation from the transport.
+        // Check emitted JSON as well as parsing; the optional tunnel is not started.
+        assert.ok(options.inputSchema.parameters instanceof z.ZodObject);
+        const emitted = z.toJSONSchema(z.object(options.inputSchema));
+        const parameters = emitted.properties.parameters;
+        assert.equal(parameters.type, "object");
+        assert.equal(parameters.additionalProperties, false);
+        assert.deepEqual(parameters.required, ["command"]);
+        assert.deepEqual(parameters.properties.command.enum, ["inspect"]);
         for (const [name, type] of [
-          ["count", "ZodNumber"],
-          ["confirm", "ZodBoolean"],
-          ["label", "ZodString"],
+          ["count", "number"],
+          ["confirm", "boolean"],
+          ["label", "string"],
         ]) {
-          assert.equal(parameters.shape[name]._def.typeName, "ZodOptional");
-          assert.equal(parameters.shape[name]._def.innerType._def.typeName, type);
+          assert.equal(parameters.properties[name].type, type);
         }
         const schema = options.inputSchema.parameters;
         for (const value of [{ command: "inspect" }, { command: "inspect", count: 2, confirm: true, label: "receipt" }])
@@ -301,6 +314,38 @@ test("MCP registration receives the real strict command schema without starting 
       },
     },
     { devtoolsPluginManager: { queryPluginsAsync: async () => [plugin] } },
+    z,
+  );
+  assert.equal(registrations, 1);
+});
+
+test("MCP registration retains the legacy transport's own Zod 3 schema identity", async () => {
+  const { addMcpCapabilities } = cli("./build/src/start/server/mcp/MCPDevToolsPluginCLIExtensions.js");
+  // Zod's compatibility export exercises the existing tunnel's raw-schema boundary
+  // without adding the optional expo-mcp dependency to the application graph.
+  const { z } = contract("zod/v3");
+  let registrations = 0;
+  await addMcpCapabilities(
+    {
+      registerTool(name: string, options: { inputSchema: { parameters: unknown } }) {
+        registrations++;
+        assert.equal(name, "fixture-plugin");
+        const parameters = z.object(options.inputSchema).shape.parameters;
+        assert.ok(parameters instanceof z.ZodObject);
+        assert.equal(parameters._def.unknownKeys, "strict");
+        assert.deepEqual(parameters.shape.command._def.values, ["inspect"]);
+        for (const [name, type] of [
+          ["count", "ZodNumber"],
+          ["confirm", "ZodBoolean"],
+          ["label", "ZodString"],
+        ]) {
+          assert.equal(parameters.shape[name]._def.typeName, "ZodOptional");
+          assert.equal(parameters.shape[name]._def.innerType._def.typeName, type);
+        }
+      },
+    },
+    { devtoolsPluginManager: { queryPluginsAsync: async () => [plugin] } },
+    z,
   );
   assert.equal(registrations, 1);
 });

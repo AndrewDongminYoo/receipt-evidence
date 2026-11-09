@@ -3,9 +3,3 @@
 id = "GHSA-gcqx-w48m-w2h4"
 ignoreUntil = 2027-05-05
 reason = "The repository maintainer accepted this risk on 2026-11-05. deepmerge 4.3.1 has no patched release. Expo SDK 57 uses it in actual config and config-plugin merges, so prototype poisoning of returned config objects remains possible with untrusted merge inputs. The repository maintainer will re-evaluate by 2027-05-05 or when a compatible upstream replacement ships."
-
-# Approved on 2026-11-05; the CLI must retain its compatible Zod 3 schema contract.
-[[IgnoredVulns]]
-id = "GHSA-mrhx-c7xc-m3w5"
-ignoreUntil = 2026-12-05
-reason = "The repository maintainer accepted this HIGH risk on 2026-11-05. Expo CLI 57.0.32 retains zod 3.25.76 because forcing Zod 4 drops command parameters in expo-mcp 0.2.4 / @expo/mcp-tunnel 0.2.4's Zod 3 and zod-to-json-schema 3.25.2 serializer. Actual CLI plugin schemas still parse unbounded plugin data, so denial-of-service exposure remains. Direct contract consumers retain patched zod 4.6.6. The repository maintainer will re-evaluate by 2026-12-05 or when compatible upstream CLI and MCP serializer support permits the patched Zod line."
