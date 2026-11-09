@@ -58,6 +58,39 @@ Set `OPENAI_API_KEY` in the web app's local environment file, then:
 pnpm --filter web dev            # http://localhost:3000
 ```
 
+## Development checks
+
+Before pushing, run the same sequence as [CI](.github/workflows/ci.yml) from the repository root with Node 24 and the pnpm version pinned in `package.json`:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm test
+pnpm typecheck
+```
+
+The frozen install synchronizes installed dependencies with `pnpm-lock.yaml` without changing its resolutions.
+Tests exercise behavior; the separate type check also checks the mobile app and its tests.
+
+### Dependency and lockfile changes
+
+Run these checks after every lockfile refresh, including updates described as tooling-only: transitive Expo packages can change while the application manifests stay pinned.
+After changing dependency declarations or overrides, regenerate the lockfile with the pinned pnpm version before running the frozen install.
+For a focused diagnosis after installation:
+
+```bash
+node --test apps/mobile/test/dependency-security.test.ts
+pnpm why -r @expo/cli @expo/fingerprint glob minimatch zod
+git diff -- pnpm-workspace.yaml pnpm-lock.yaml
+```
+
+Check that each version-scoped override still matches its resolved parent, and that every consumer resolves a patched matcher within the intended major version.
+The regression suite reads the lockfile, resolves dependencies from their actual Expo consumers, and exercises config discovery, Metro, template renaming, fingerprint ignores, and plugin/MCP schemas.
+Keep those consumer checks when updating internal CLI import paths or version expectations.
+
+For changes to the MCP schema implementation or transport, also inspect serialized command enums, parameter types, required fields, and strictness through the actual transport converter in a disposable fixture without starting a server.
+The suite checks Zod 4 JSON serialization and the legacy transport's Zod 3 schema identity; the optional `expo-mcp` converter is not installed by the suite.
+Confirm that a mismatched schema/converter pair fails the serialization check before trusting its passing result.
+
 ## The mobile app
 
 `apps/mobile` is the capture path: the platform document scanner, on-device OCR, one request, and evidence boxes drawn on the photo.
